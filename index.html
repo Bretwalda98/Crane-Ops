@@ -3,11 +3,25 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no" />
-  <title>Crane Ops — Mobile + PC</title>
+  <title>Crane Ops — CAD Lift Planner (Top + Side)</title>
   <style>
     :root{
-      --bg:#0b0f14; --panel:#0f1621cc; --panel2:#0f1621f2; --ink:#e9eef7; --mut:#9fb0c7;
-      --ok:#43f59a; --warn:#ffd166; --bad:#ff4d6d; --line:#253447;
+      --bg:#070a0f;                 /* AutoCAD-ish modelspace vibe */
+      --cad:#0b1220;
+      --panel:#0f1621cc;
+      --panel2:#0f1621f2;
+      --ink:#e9eef7;
+      --mut:#9fb0c7;
+      --ok:#43f59a;
+      --warn:#ffd166;
+      --bad:#ff4d6d;
+      --line:#2a3a52;
+      --grid:#142238;
+      --cadCyan:#33f6ff;
+      --cadYellow:#ffd166;
+      --cadMag:#ff74d4;
+      --cadGreen:#43f59a;
+      --cadRed:#ff4d6d;
       --shadow: 0 10px 35px rgba(0,0,0,.45);
       --r:16px;
       --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
@@ -15,8 +29,8 @@
     }
     *{box-sizing:border-box}
     html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);font-family:var(--sans);overflow:hidden}
-    button{font:inherit}
-    .wrap{position:fixed;inset:0;display:grid;grid-template-rows:auto 1fr auto}
+
+    .wrap{position:fixed;inset:0;display:grid;grid-template-rows:auto 1fr}
     header{
       display:flex;align-items:center;justify-content:space-between;gap:12px;
       padding:10px 12px;background:linear-gradient(180deg, rgba(15,22,33,.92), rgba(15,22,33,.55));
@@ -47,11 +61,14 @@
     .btn.bad{background:rgba(255,77,109,.12);border-color:rgba(255,77,109,.25)}
     .btn.small{padding:6px 9px;border-radius:10px;font-size:12px}
     .btn:active{transform:translateY(1px)}
+    .btn:disabled{opacity:.55;cursor:not-allowed}
+
     main{position:relative}
     canvas{position:absolute;inset:0;width:100%;height:100%}
+
     .hud{
       position:absolute;left:12px;top:12px;display:flex;flex-direction:column;gap:10px;
-      max-width:min(380px, calc(100% - 24px));
+      max-width:min(460px, calc(100% - 24px));
       pointer-events:none;
     }
     .card{
@@ -70,9 +87,18 @@
     .bar{height:8px;border-radius:999px;background:rgba(255,255,255,.07);overflow:hidden;border:1px solid rgba(255,255,255,.06)}
     .bar > i{display:block;height:100%;width:50%;background:linear-gradient(90deg, rgba(79,168,255,.9), rgba(67,245,154,.9))}
     .bar.warn > i{background:linear-gradient(90deg, rgba(255,209,102,.95), rgba(255,77,109,.9))}
+    .pills{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+    .pill{
+      display:inline-flex;align-items:center;gap:8px;
+      border-radius:999px;padding:6px 10px;
+      border:1px solid rgba(255,255,255,.10);
+      background:rgba(255,255,255,.05);
+      font-size:12px;color:rgba(233,238,247,.92);
+      pointer-events:none;
+    }
     .hint{
       position:absolute;left:50%;transform:translateX(-50%);
-      bottom:12px;max-width:min(720px, calc(100% - 24px));
+      bottom:12px;max-width:min(980px, calc(100% - 24px));
       background:rgba(15,22,33,.72);border:1px solid rgba(255,255,255,.09);
       border-radius:999px;padding:10px 14px;
       color:rgba(233,238,247,.92);
@@ -80,17 +106,12 @@
       font-size:13px; text-align:center; pointer-events:none;
     }
 
-    /* Panels */
-    .overlay{
-      position:absolute;inset:0;display:none;align-items:center;justify-content:center;
-      background:rgba(0,0,0,.55);
-      backdrop-filter: blur(10px);
-      padding:14px;
-    }
+    .overlay{ position:absolute;inset:0;display:none;align-items:center;justify-content:center;
+      background:rgba(0,0,0,.55);backdrop-filter: blur(10px);padding:14px; }
     .overlay.on{display:flex}
     .panel{
-      width:min(980px, 100%);
-      max-height:min(92vh, 750px);
+      width:min(1100px, 100%);
+      max-height:min(92vh, 820px);
       overflow:auto;
       background:var(--panel2);
       border:1px solid rgba(255,255,255,.10);
@@ -98,14 +119,10 @@
       box-shadow: 0 18px 80px rgba(0,0,0,.65);
       padding:14px;
     }
-    .panelHead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 6px 10px}
+    .panelHead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 6px 10px;position:sticky;top:0;background:linear-gradient(180deg, rgba(15,22,33,.95), rgba(15,22,33,.84));backdrop-filter: blur(10px);border-bottom:1px solid rgba(255,255,255,.06);border-radius:18px}
     .panelHead h2{margin:0;font-size:16px;letter-spacing:.2px}
     .sub{color:var(--mut);font-size:12px;margin-top:2px}
-    .grid{
-      display:grid;
-      grid-template-columns: repeat( auto-fit, minmax(235px, 1fr) );
-      gap:10px;
-    }
+    .grid{display:grid;grid-template-columns: repeat( auto-fit, minmax(250px, 1fr) );gap:10px;padding:10px 4px 6px}
     .tile{
       background:rgba(255,255,255,.04);
       border:1px solid rgba(255,255,255,.09);
@@ -123,22 +140,37 @@
     }
     .tag.ok{border-color:rgba(67,245,154,.25);background:rgba(67,245,154,.10)}
     .tag.bad{border-color:rgba(255,77,109,.25);background:rgba(255,77,109,.10)}
-    .tile b{font-size:14px}
-    .tile .mini{color:var(--mut);font-size:12px;line-height:1.25}
-    .tile .stats{display:grid;gap:8px}
+    .mini{color:var(--mut);font-size:12px;line-height:1.25}
+    .stats{display:grid;gap:8px}
     .statline{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:12px}
     .statline span{color:var(--mut)}
-    .statline code{font-family:var(--mono);font-size:12px;color:rgba(233,238,247,.92)}
+
     .tileBtns{display:flex;gap:8px;flex-wrap:wrap}
 
-    /* Mobile controls overlay */
-    .touchUI{
-      position:absolute;inset:0;display:none;pointer-events:none;
+    .editorBar{
+      display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+      padding:10px;border:1px solid rgba(255,255,255,.10);
+      border-radius:18px;background:rgba(255,255,255,.04);
+      margin:10px 4px;
     }
+    .field{display:grid;gap:6px;margin-top:8px}
+    .field label{font-size:12px;color:var(--mut)}
+    .field input,.field select,.field textarea{
+      width:100%;padding:10px 10px;border-radius:14px;
+      background:rgba(255,255,255,.06);
+      border:1px solid rgba(255,255,255,.10);
+      color:var(--ink);
+      outline:none;
+    }
+    .field textarea{min-height:130px;font-family:var(--mono);font-size:12px}
+    .kbd{font-family:var(--mono);font-size:12px;color:rgba(233,238,247,.85);background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.10);padding:3px 8px;border-radius:999px}
+
+    /* Touch controls */
+    .touchUI{position:absolute;inset:0;display:none;pointer-events:none;}
     .touchUI.on{display:block}
     .touchPad{
       position:absolute;bottom:12px;left:12px;
-      width:min(42vw, 220px);height:min(42vw, 220px);
+      width:min(42vw, 230px);height:min(42vw, 230px);
       border-radius:24px;
       background:rgba(15,22,33,.62);
       border:1px solid rgba(255,255,255,.10);
@@ -148,25 +180,22 @@
       touch-action:none;
       overflow:hidden;
     }
-    .joyBase{
-      position:absolute;inset:12px;border-radius:18px;
-      border:1px dashed rgba(255,255,255,.12);
-      background: radial-gradient(circle at 50% 30%, rgba(255,255,255,.06), rgba(255,255,255,0) 60%);
-    }
+    .joyBase{position:absolute;inset:12px;border-radius:18px;border:1px dashed rgba(255,255,255,.12);
+      background: radial-gradient(circle at 50% 30%, rgba(255,255,255,.06), rgba(255,255,255,0) 60%);}
     .joyKnob{
       position:absolute;left:50%;top:50%;
-      width:64px;height:64px;margin-left:-32px;margin-top:-32px;border-radius:18px;
+      width:66px;height:66px;margin-left:-33px;margin-top:-33px;border-radius:18px;
       background:rgba(255,255,255,.10);
       border:1px solid rgba(255,255,255,.12);
       box-shadow: 0 10px 25px rgba(0,0,0,.35);
     }
     .touchRight{
       position:absolute;bottom:12px;right:12px;
-      width:min(42vw, 220px);
+      width:min(44vw, 250px);
       display:grid;gap:10px;pointer-events:auto;touch-action:none;
     }
     .hoist{
-      height:min(42vw, 220px);
+      height:min(42vw, 230px);
       border-radius:24px;
       background:rgba(15,22,33,.62);
       border:1px solid rgba(255,255,255,.10);
@@ -183,12 +212,9 @@
       box-shadow: 0 10px 25px rgba(0,0,0,.35);
       top:calc(50% - 27px);
     }
-    .touchBtns{
-      display:grid;grid-template-columns:repeat(2,1fr);gap:10px;
-    }
+    .touchBtns{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;}
     .tbtn{
-      pointer-events:auto;
-      border-radius:18px;padding:14px 10px;
+      pointer-events:auto;border-radius:18px;padding:14px 10px;
       background:rgba(15,22,33,.62);
       border:1px solid rgba(255,255,255,.10);
       box-shadow: var(--shadow);
@@ -196,21 +222,19 @@
       text-align:center;
       user-select:none;
       -webkit-tap-highlight-color: transparent;
-      font-weight:700;
-      letter-spacing:.2px;
+      font-weight:800;letter-spacing:.2px;
     }
     .tbtn small{display:block;color:var(--mut);font-size:11px;font-weight:600;margin-top:2px}
     .tbtn:active{transform:translateY(1px)}
     .tbtn.on{border-color:rgba(67,245,154,.28);background:rgba(67,245,154,.10)}
-    .tbtn.warn{border-color:rgba(255,209,102,.28);background:rgba(255,209,102,.10)}
+    .tbtn.dim{opacity:.35}
 
-    /* Compact bottom bar for portrait */
     @media (max-aspect-ratio: 9/16){
       header{padding:8px 10px}
-      .hud{top:50px}
-      .touchPad{width:min(46vw, 210px);height:min(46vw, 210px)}
-      .touchRight{width:min(46vw, 210px)}
-      .hoist{height:min(46vw, 210px)}
+      .hud{top:54px}
+      .touchPad{width:min(46vw, 220px);height:min(46vw, 220px)}
+      .touchRight{width:min(48vw, 260px)}
+      .hoist{height:min(46vw, 220px)}
     }
   </style>
 </head>
@@ -220,17 +244,19 @@
     <div class="brand">
       <div class="logo"></div>
       <div class="title">
-        <b>Crane Ops</b>
-        <span id="subtitle">Mobile + PC crane handling</span>
+        <b>Crane Ops <span style="opacity:.65">CAD Lift Planner</span></b>
+        <span id="subtitle">Top (Plan) + Side (Elevation) • planning-gated gameplay</span>
       </div>
     </div>
     <div class="topBtns">
       <button class="btn small" id="btnHangar">Hangar</button>
       <button class="btn small" id="btnLevels">Levels</button>
+      <button class="btn small" id="btnPlan">Plan</button>
+      <button class="btn small" id="btnStandards">BS/EN</button>
       <button class="btn small" id="btnControls">Controls</button>
       <button class="btn small" id="btnSettings">Settings</button>
       <button class="btn small bad" id="btnRestart">Restart</button>
-      <button class="btn small primary" id="btnPlay">Play</button>
+      <button class="btn small primary" id="btnPlay">Operate</button>
     </div>
   </header>
 
@@ -238,31 +264,41 @@
     <canvas id="c"></canvas>
 
     <div class="hud">
-      <div class="card" id="hudCard">
+      <div class="card">
         <div class="row"><div class="k">Crane</div><div class="v" id="hudCrane">—</div></div>
+        <div class="row"><div class="k">Mode</div><div class="v" id="hudMode">PLAN</div></div>
         <div class="row"><div class="k">Level</div><div class="v" id="hudLevel">—</div></div>
         <div class="row"><div class="k">Score</div><div class="v" id="hudScore">0</div></div>
-        <div class="row"><div class="k">Time</div><div class="v" id="hudTime">00:00</div></div>
+
         <div class="bars">
+          <div class="row"><div class="k">Utilisation (SIM)</div><div class="v"><span id="hudUtil">0%</span></div></div>
+          <div class="bar warn"><i id="barUtil"></i></div>
+
           <div class="row"><div class="k">Swing</div><div class="v"><span id="hudSwing">0.0°</span></div></div>
           <div class="bar warn"><i id="barSwing"></i></div>
-          <div class="row"><div class="k">Stability</div><div class="v"><span id="hudStab">100%</span></div></div>
-          <div class="bar"><i id="barStab"></i></div>
-          <div class="row"><div class="k">Hoist</div><div class="v"><span id="hudHoist">0%</span></div></div>
-          <div class="bar"><i id="barHoist"></i></div>
+
+          <div class="row"><div class="k">Hook height</div><div class="v"><span id="hudH">—</span></div></div>
+          <div class="bar"><i id="barH"></i></div>
+
+          <div class="row"><div class="k">Radius</div><div class="v"><span id="hudR">—</span></div></div>
+          <div class="bar"><i id="barR"></i></div>
+        </div>
+
+        <div class="pills">
+          <span class="pill">Pick <span class="v" id="hudPick">—</span></span>
+          <span class="pill">Set <span class="v" id="hudSet">—</span></span>
+          <span class="pill">Zoom <span class="v" id="hudZoom">—</span></span>
         </div>
       </div>
     </div>
 
-    <div class="hint" id="hint">Select a crane in the Hangar → Play. (Desktop: WASD/Arrows + Space) (Mobile: joystick + hoist slider)</div>
+    <div class="hint" id="hint">PLAN mode: drag crane / pick / set targets in TOP view. Tick the Plan Gate → then “Operate”.</div>
 
     <!-- Touch controls -->
     <div class="touchUI" id="touchUI">
-      <div class="touchPad" id="joy">
-        <div class="joyBase"></div>
-        <div class="joyKnob" id="joyKnob"></div>
+      <div class="touchPad" id="touchPad">
+        <div class="joyBase"></div><div class="joyKnob" id="joyKnob"></div>
       </div>
-
       <div class="touchRight">
         <div class="hoist" id="hoist">
           <div class="track"></div>
@@ -270,2033 +306,1729 @@
           <div class="thumb" id="hoistThumb"></div>
         </div>
         <div class="touchBtns">
-          <div class="tbtn" id="tAttach">ATTACH<small>tap</small></div>
-          <div class="tbtn" id="tPrecision">PRECISION<small>hold/toggle</small></div>
-          <div class="tbtn" id="tSlewL">SLEW ◀<small>hold</small></div>
-          <div class="tbtn" id="tSlewR">SLEW ▶<small>hold</small></div>
-          <div class="tbtn" id="tTelIn">TELE ◀<small>hold</small></div>
-          <div class="tbtn" id="tTelOut">TELE ▶<small>hold</small></div>
+          <div class="tbtn" id="tAttach">HOOK<small>attach</small></div>
+          <div class="tbtn" id="tPrec">PREC<small>fine</small></div>
+          <div class="tbtn" id="tSlew">SLEW<small>left/right</small></div>
+          <div class="tbtn" id="tLuff">LUFF<small>up/down</small></div>
         </div>
       </div>
     </div>
 
-    <!-- Overlay panels -->
-    <div class="overlay" id="ovHangar">
-      <div class="panel">
-        <div class="panelHead">
-          <div>
-            <h2>Crane Hangar</h2>
-            <div class="sub">Real crane categories, simplified but distinct. Earn medals to unlock more.</div>
-          </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="btn small" id="btnSandbox">Sandbox</button>
-            <button class="btn small" id="btnCloseHangar">Close</button>
-          </div>
+    <!-- Overlays -->
+    <div class="overlay" id="ovHangar"><div class="panel">
+      <div class="panelHead">
+        <div>
+          <h2>Crane Hangar</h2>
+          <div class="sub">Pick a real crane model (game uses *SIM* capacity, not manufacturer load charts).</div>
         </div>
-        <div class="grid" id="hangarGrid"></div>
+        <button class="btn small" data-close="ovHangar">Close</button>
       </div>
-    </div>
+      <div class="grid" id="hangarGrid"></div>
+    </div></div>
 
-    <div class="overlay" id="ovLevels">
-      <div class="panel">
-        <div class="panelHead">
-          <div>
-            <h2>Levels</h2>
-            <div class="sub">Warehouse → Yard → Construction → Heavy Lift. Try any unlocked crane.</div>
-          </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="btn small" id="btnCloseLevels">Close</button>
-          </div>
+    <div class="overlay" id="ovLevels"><div class="panel">
+      <div class="panelHead">
+        <div>
+          <h2>Levels</h2>
+          <div class="sub">Each level is a “site puzzle”: set crane position, reach, clearance, swing control, place safely.</div>
         </div>
-        <div class="grid" id="levelsGrid"></div>
+        <button class="btn small" data-close="ovLevels">Close</button>
       </div>
-    </div>
+      <div class="grid" id="levelGrid"></div>
+    </div></div>
 
-    <div class="overlay" id="ovControls">
-      <div class="panel">
-        <div class="panelHead">
-          <div>
-            <h2>Controls</h2>
-            <div class="sub">Auto switches for phone / PC. You can force Desktop or Mobile in Settings.</div>
+    <div class="overlay" id="ovPlan"><div class="panel">
+      <div class="panelHead">
+        <div>
+          <h2>Plan Gate (lift planning workflow)</h2>
+          <div class="sub">Tick items to unlock OPERATE. This mimics good practice; it is not a real lift plan.</div>
+        </div>
+        <button class="btn small" data-close="ovPlan">Close</button>
+      </div>
+
+      <div class="editorBar">
+        <button class="btn small" id="btnExportSVG">Export TOP view SVG</button>
+        <button class="btn small" id="btnExportDXF">Export TOP view DXF</button>
+        <span class="tag" id="gateStatus">Gate: locked</span>
+      </div>
+
+      <div class="grid">
+        <div class="tile">
+          <div class="tileTop"><b>Planning checklist</b><span class="tag ok">BS/EN style</span></div>
+          <div class="mini">You can’t operate until the minimum gate is met.</div>
+          <div class="field"><label><input type="checkbox" class="gate" data-key="ap"> Appointed Person / PIC assigned</label></div>
+          <div class="field"><label><input type="checkbox" class="gate" data-key="scope"> Lift scope defined (pick, set, path, constraints)</label></div>
+          <div class="field"><label><input type="checkbox" class="gate" data-key="crane"> Crane selected & configured (boom/cw/outriggers)</label></div>
+          <div class="field"><label><input type="checkbox" class="gate" data-key="ground"> Ground & setup zone checked (SIM)</label></div>
+          <div class="field"><label><input type="checkbox" class="gate" data-key="zone"> Exclusion zones set (SIM)</label></div>
+          <div class="field"><label><input type="checkbox" class="gate" data-key="rigging"> Rigging plan confirmed (SIM)</label></div>
+          <div class="field"><label><input type="checkbox" class="gate" data-key="comms"> Communications agreed (SIM)</label></div>
+          <div class="field"><label><input type="checkbox" class="gate" data-key="weather"> Wind / weather within limit (SIM)</label></div>
+        </div>
+
+        <div class="tile">
+          <div class="tileTop"><b>Plan checks (auto)</b><span class="tag" id="autoTag">checking…</span></div>
+          <div class="stats">
+            <div class="statline"><span>Reach to pick</span><b id="chkPick">—</b></div>
+            <div class="statline"><span>Reach to set</span><b id="chkSet">—</b></div>
+            <div class="statline"><span>Clearance</span><b id="chkClear">—</b></div>
+            <div class="statline"><span>Utilisation (SIM)</span><b id="chkUtil">—</b></div>
+            <div class="statline"><span>Collision risk</span><b id="chkCol">—</b></div>
           </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="btn small" id="btnCloseControls">Close</button>
+          <div class="mini">These are simplified “game checks” for pacing and training feel.</div>
+        </div>
+      </div>
+    </div></div>
+
+    <div class="overlay" id="ovStandards"><div class="panel">
+      <div class="panelHead">
+        <div>
+          <h2>BS / EN framing (training mode)</h2>
+          <div class="sub">What the game is *trying* to mirror — without pretending to be a lift plan tool.</div>
+        </div>
+        <button class="btn small" data-close="ovStandards">Close</button>
+      </div>
+      <div class="grid">
+        <div class="tile">
+          <div class="tileTop"><b>Reality check</b><span class="tag bad">Important</span></div>
+          <div class="mini">
+            This is a <b>game + training simulator</b>. It must <b>not</b> be used for actual lifting operations.
+            Always use the manufacturer’s manual/load charts and competent planning/engineering.
           </div>
         </div>
         <div class="tile">
-          <b>Desktop</b>
+          <div class="tileTop"><b>BS 7121 style workflow</b><span class="tag ok">Planning</span></div>
           <div class="mini">
-            <code>Arrow / A,D</code> Move (X/Y varies per crane) • <code>W/S</code> Hoist • <code>←/→</code> Slew • <code>Z/C</code> Telescope • <code>Space</code> Attach/Drop • <code>Shift</code> Precision • <code>R</code> Restart • <code>Esc</code> Pause
-          </div>
-          <div class="mini" style="margin-top:6px">
-            Tip: Smooth movement = less swing. Clear obstacles by hoisting higher (but watch overload / stability).
+            The game “Plan Gate” is inspired by a typical UK approach: define scope, appoint responsibility,
+            manage risks, control the lift, and verify the setup/conditions.
           </div>
         </div>
-        <div class="tile" style="margin-top:10px">
-          <b>Mobile</b>
+        <div class="tile">
+          <div class="tileTop"><b>EN standards</b><span class="tag ok">Cranes</span></div>
           <div class="mini">
-            Left joystick = planar movement (or crane travel). Right slider = hoist height. Buttons appear for Slew / Telescope when the crane supports them.
+            EN crane standards focus heavily on design/safety requirements of cranes (e.g., mobile cranes, tower cranes).
+            The game uses them as “category flavour”, not engineering validation.
           </div>
         </div>
       </div>
-    </div>
+    </div></div>
 
-    <div class="overlay" id="ovSettings">
-      <div class="panel">
-        <div class="panelHead">
-          <div>
-            <h2>Settings</h2>
-            <div class="sub">Tuning + accessibility.</div>
-          </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="btn small" id="btnCloseSettings">Close</button>
+    <div class="overlay" id="ovControls"><div class="panel">
+      <div class="panelHead">
+        <div>
+          <h2>Controls</h2>
+          <div class="sub">Desktop + Mobile. (On mobile, touch UI appears automatically.)</div>
+        </div>
+        <button class="btn small" data-close="ovControls">Close</button>
+      </div>
+      <div class="grid">
+        <div class="tile">
+          <div class="tileTop"><b>Desktop</b><span class="tag">Operate</span></div>
+          <div class="mini">
+            <div>Move base: <span class="kbd">A/D</span> or <span class="kbd">←/→</span></div>
+            <div>Hoist: <span class="kbd">W/S</span> or <span class="kbd">↑/↓</span></div>
+            <div>Slew: <span class="kbd">J/L</span></div>
+            <div>Luff: <span class="kbd">I/K</span></div>
+            <div>Telescope (where supported): <span class="kbd">U/O</span></div>
+            <div>Attach/Detach: <span class="kbd">Space</span></div>
+            <div>Precision: <span class="kbd">Shift</span></div>
+            <div>Pan/Zoom TOP view: mouse drag / wheel (or trackpad)</div>
           </div>
         </div>
-        <div class="grid">
-          <div class="tile">
-            <div class="tileTop">
-              <div>
-                <b>Control Mode</b>
-                <div class="mini">Auto picks Mobile on touch devices. You can override.</div>
-              </div>
-              <span class="tag" id="tagMode">Auto</span>
-            </div>
-            <div class="tileBtns">
-              <button class="btn small" id="modeAuto">Auto</button>
-              <button class="btn small" id="modeDesktop">Desktop</button>
-              <button class="btn small" id="modeMobile">Mobile</button>
-              <button class="btn small" id="modeSwapHands">Swap hands</button>
-            </div>
-          </div>
-
-          <div class="tile">
-            <div class="tileTop">
-              <div>
-                <b>Effects</b>
-                <div class="mini">Turn down for older phones.</div>
-              </div>
-            </div>
-            <div class="tileBtns">
-              <button class="btn small" id="togShake">Screen shake: On</button>
-              <button class="btn small" id="togAudio">Audio: Off</button>
-              <button class="btn small" id="togGrid">Grid: On</button>
-            </div>
-          </div>
-
-          <div class="tile">
-            <div class="tileTop">
-              <div>
-                <b>Difficulty</b>
-                <div class="mini">Changes swing threshold + stability tolerance.</div>
-              </div>
-              <span class="tag" id="tagDiff">Standard</span>
-            </div>
-            <div class="tileBtns">
-              <button class="btn small" id="diffCasual">Casual</button>
-              <button class="btn small" id="diffStandard">Standard</button>
-              <button class="btn small" id="diffPro">Pro</button>
-            </div>
-          </div>
-
-          <div class="tile">
-            <div class="tileTop">
-              <div>
-                <b>Data</b>
-                <div class="mini">Local progress only (stored in your browser).</div>
-              </div>
-            </div>
-            <div class="tileBtns">
-              <button class="btn small bad" id="wipeData">Reset Progress</button>
-            </div>
+        <div class="tile">
+          <div class="tileTop"><b>Plan mode (Desktop + Mobile)</b><span class="tag">CAD style</span></div>
+          <div class="mini">
+            In TOP view, drag:
+            <ul>
+              <li><b>Crane base</b> (cyan)</li>
+              <li><b>Pick point</b> (magenta)</li>
+              <li><b>Set point</b> (green)</li>
+            </ul>
+            Obstacles are red “no-go” blocks with a height (used for clearance warnings in SIDE view).
           </div>
         </div>
       </div>
-    </div>
+    </div></div>
 
-    <div class="overlay" id="ovResult">
-      <div class="panel">
-        <div class="panelHead">
-          <div>
-            <h2 id="resTitle">Result</h2>
-            <div class="sub" id="resSub">—</div>
-          </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;">
-            <button class="btn small" id="btnResClose">Close</button>
-            <button class="btn small primary" id="btnResNext">Next</button>
-          </div>
+    <div class="overlay" id="ovSettings"><div class="panel">
+      <div class="panelHead">
+        <div>
+          <h2>Settings</h2>
+          <div class="sub">Visual + difficulty.</div>
         </div>
-        <div class="grid" id="resGrid"></div>
+        <button class="btn small" data-close="ovSettings">Close</button>
       </div>
-    </div>
+      <div class="grid">
+        <div class="tile">
+          <div class="tileTop"><b>Visual</b><span class="tag">CAD</span></div>
+          <div class="field"><label>AutoCAD grid
+            <select id="setGrid">
+              <option value="1">On</option>
+              <option value="0">Off</option>
+            </select>
+          </label></div>
+          <div class="field"><label>Dimensions
+            <select id="setDims">
+              <option value="1">On</option>
+              <option value="0">Off</option>
+            </select>
+          </label></div>
+          <div class="field"><label>Viewport split
+            <select id="setSplit">
+              <option value="auto">Auto</option>
+              <option value="wide">Wide (side right)</option>
+              <option value="tall">Tall (side bottom)</option>
+            </select>
+          </label></div>
+        </div>
+        <div class="tile">
+          <div class="tileTop"><b>Difficulty</b><span class="tag">Game</span></div>
+          <div class="field"><label>Swing multiplier
+            <select id="setSwing">
+              <option value="0.8">Easy</option>
+              <option value="1" selected>Normal</option>
+              <option value="1.3">Hard</option>
+            </select>
+          </label></div>
+          <div class="field"><label>Wind gusts (SIM)
+            <select id="setWind">
+              <option value="0">Off</option>
+              <option value="1" selected>On</option>
+            </select>
+          </label></div>
+        </div>
+      </div>
+    </div></div>
 
   </main>
-
-  <footer style="padding:10px 12px;border-top:1px solid rgba(255,255,255,.06);background:rgba(15,22,33,.55);backdrop-filter: blur(10px);">
-    <div style="display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap;">
-      <div style="color:var(--mut);font-size:12px">
-        Tip: keep the load high to clear obstacles, then lower slowly to “settle” inside the bay.
-      </div>
-      <div style="color:rgba(233,238,247,.75);font-size:12px;font-family:var(--mono)">
-        v1.0 • offline • one-file
-      </div>
-    </div>
-  </footer>
 </div>
 
 <script>
 (() => {
-  "use strict";
+  // =========================
+  // Safety / scope disclaimer
+  // =========================
+  // This is a GAME + TRAINING SIM. It deliberately uses SIMPLIFIED logic and MUST NOT be used for real lifting operations.
 
-  /* ----------------------------- Utilities ----------------------------- */
+  // ---------- Helpers ----------
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
   const lerp = (a,b,t) => a + (b-a)*t;
-  const fmtTime = (s) => {
-    s = Math.max(0, Math.floor(s));
-    const m = Math.floor(s / 60);
-    const r = s % 60;
-    return String(m).padStart(2,"0") + ":" + String(r).padStart(2,"0");
-  };
-  const now = () => performance.now();
-  const hasTouch = () => ("ontouchstart" in window) || (navigator.maxTouchPoints > 0);
+  const dist = (ax,ay,bx,by) => Math.hypot(ax-bx, ay-by);
+  const fmt = (n, d=1) => (Math.round(n*10**d)/10**d).toFixed(d);
+  const rad2deg = r => r * 180/Math.PI;
+  const deg2rad = d => d * Math.PI/180;
 
-  /* ----------------------------- Storage ----------------------------- */
-  const LS_KEY = "crane_ops_v1";
+  function nowMs(){ return performance.now(); }
+
+  // ---------- Storage ----------
+  const KEY = "craneops_cad_v1";
   const loadSave = () => {
-    try { return JSON.parse(localStorage.getItem(LS_KEY)) || null; } catch { return null; }
+    try { return JSON.parse(localStorage.getItem(KEY) || "{}"); } catch { return {}; }
   };
-  const saveSave = (obj) => localStorage.setItem(LS_KEY, JSON.stringify(obj));
-  const defaultSave = () => ({
-    unlockedCraneIds: ["overhead_bridge"],
-    medalsByLevel: {}, // levelId -> 0..3
-    bestScoreByLevel: {},
-    totalMedals: 0,
-    settings: {
-      controlMode: "auto", // auto | desktop | mobile
-      swapHands: false,
-      shake: true,
-      audio: false,
-      grid: true,
-      difficulty: "standard" // casual | standard | pro
-    }
+  const saveSave = (s) => localStorage.setItem(KEY, JSON.stringify(s));
+  const S = loadSave();
+
+  // ---------- UI ----------
+  const $ = (id) => document.getElementById(id);
+
+  const overlays = ["ovHangar","ovLevels","ovPlan","ovStandards","ovControls","ovSettings"].reduce((m,k)=> (m[k]=$(k),m), {});
+  function openOv(name){ Object.values(overlays).forEach(o=>o.classList.remove("on")); overlays[name].classList.add("on"); }
+  function closeAllOv(){ Object.values(overlays).forEach(o=>o.classList.remove("on")); }
+  document.querySelectorAll("[data-close]").forEach(b=>{
+    b.addEventListener("click", () => overlays[b.getAttribute("data-close")].classList.remove("on"));
   });
 
-  /* ----------------------------- Audio (tiny WebAudio beep kit) ----------------------------- */
-  const AudioKit = () => {
-    let actx = null;
-    let enabled = false;
-    const ensure = () => {
-      if (!actx) actx = new (window.AudioContext || window.webkitAudioContext)();
-      return actx;
-    };
-    const beep = (type="sine", freq=220, dur=0.08, gain=0.06) => {
-      if (!enabled) return;
-      const ctx = ensure();
-      const o = ctx.createOscillator();
-      const g = ctx.createGain();
-      o.type = type;
-      o.frequency.value = freq;
-      g.gain.value = gain;
-      o.connect(g).connect(ctx.destination);
-      const t = ctx.currentTime;
-      g.gain.setValueAtTime(gain, t);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-      o.start(t);
-      o.stop(t + dur + 0.02);
-    };
-    return {
-      setEnabled(v){ enabled = !!v; if (enabled) ensure(); },
-      click(){ beep("triangle", 520, 0.05, 0.05); },
-      attach(){ beep("square", 180, 0.07, 0.07); },
-      detach(){ beep("square", 140, 0.07, 0.07); },
-      thud(){ beep("sine", 90, 0.10, 0.08); },
-      warn(){ beep("sawtooth", 380, 0.06, 0.05); },
-      success(){ beep("triangle", 680, 0.08, 0.06); setTimeout(()=>beep("triangle", 920, 0.08, 0.05), 90); },
-      fail(){ beep("sawtooth", 120, 0.18, 0.08); },
-    };
+  // Buttons
+  $("btnHangar").onclick = () => openOv("ovHangar");
+  $("btnLevels").onclick = () => openOv("ovLevels");
+  $("btnPlan").onclick = () => openOv("ovPlan");
+  $("btnStandards").onclick = () => openOv("ovStandards");
+  $("btnControls").onclick = () => openOv("ovControls");
+  $("btnSettings").onclick = () => openOv("ovSettings");
+
+  // HUD
+  const hud = {
+    crane: $("hudCrane"), mode:$("hudMode"), level:$("hudLevel"), score:$("hudScore"),
+    util:$("hudUtil"), swing:$("hudSwing"), h:$("hudH"), r:$("hudR"), zoom:$("hudZoom"),
+    pick:$("hudPick"), set:$("hudSet"),
+    barUtil:$("barUtil"), barSwing:$("barSwing"), barH:$("barH"), barR:$("barR"),
+    hint:$("hint")
   };
 
-  /* ----------------------------- Game Data ----------------------------- */
-  // Crane "real categories" (simplified, but distinct kinematics & stats)
-  // Capabilities:
-  // - planarMove: can move hook in XY directly (overhead/gantry bridge+trolley)
-  // - baseMove: crane itself can drive/crawl in XY (mobile/crawler/pick-carry)
-  // - slew: hook position via radius+angle around a base (tower/mobile/crawler/knuckle)
-  // - telescope: changes radius
-  // - luff: changes effective capacity/limits (simplified)
-  const CRANES = [
-    {
-      id:"overhead_bridge", name:"Overhead Bridge Crane", type:"Industrial (EOT)",
-      desc:"Bridge + trolley travel. Stable and precise, great for warehouses.",
-      caps:{planarMove:true, baseMove:false, slew:false, telescope:false, luff:false},
-      stats:{maxLoad:10, moveSpeed:440, hoistSpeed:1.0, slewSpeed:0, telSpeed:0, stability:1.0, damping:0.92},
-      perk:"+Very stable", drawback:"-No rotation features"
-    },
-    {
-      id:"rail_gantry", name:"Rail Gantry Crane", type:"Yard (Gantry)",
-      desc:"Long travel on rails. Slower but covers a big working area.",
-      caps:{planarMove:true, baseMove:false, slew:false, telescope:false, luff:false},
-      stats:{maxLoad:14, moveSpeed:360, hoistSpeed:0.9, slewSpeed:0, telSpeed:0, stability:0.95, damping:0.90},
-      perk:"+Huge coverage", drawback:"-Slower response"
-    },
-    {
-      id:"tower_hammer", name:"Tower Crane (Hammerhead)", type:"Construction (Tower)",
-      desc:"Fixed base. Slew with trolley radius control along the jib.",
-      caps:{planarMove:false, baseMove:false, slew:true, telescope:false, luff:false},
-      stats:{maxLoad:9, moveSpeed:0, hoistSpeed:0.95, slewSpeed:1.55, telSpeed:0, stability:0.85, damping:0.90},
-      perk:"+Great reach", drawback:"-Swing-prone if rushed",
-      limits:{rMin:90, rMax:660}
-    },
-    {
-      id:"tower_luff", name:"Tower Crane (Luffing Jib)", type:"Construction (Tower)",
-      desc:"Luffing reduces oversail and helps in tight spaces. Slower but controlled.",
-      caps:{planarMove:false, baseMove:false, slew:true, telescope:false, luff:true},
-      stats:{maxLoad:10, moveSpeed:0, hoistSpeed:0.9, slewSpeed:1.35, telSpeed:0, stability:0.90, damping:0.92},
-      perk:"+Tight-site control", drawback:"-Slower moves",
-      limits:{rMin:80, rMax:560}
-    },
-    {
-      id:"truck_tele", name:"Truck Telescopic Crane", type:"Mobile (Truck)",
-      desc:"Fast, flexible. Telescope boom for reach. Keep an eye on radius vs capacity.",
-      caps:{planarMove:false, baseMove:true, slew:true, telescope:true, luff:true},
-      stats:{maxLoad:12, moveSpeed:230, hoistSpeed:0.95, slewSpeed:1.75, telSpeed:240, stability:0.78, damping:0.88},
-      perk:"+Quick & versatile", drawback:"-Stability sensitive",
-      limits:{rMin:70, rMax:520}
-    },
-    {
-      id:"all_terrain", name:"All-Terrain Mobile Crane", type:"Mobile (AT)",
-      desc:"Balanced travel and lift. Good for mixed sites.",
-      caps:{planarMove:false, baseMove:true, slew:true, telescope:true, luff:true},
-      stats:{maxLoad:14, moveSpeed:210, hoistSpeed:0.95, slewSpeed:1.55, telSpeed:220, stability:0.82, damping:0.89},
-      perk:"+Balanced", drawback:"-Not the best at extremes",
-      limits:{rMin:80, rMax:560}
-    },
-    {
-      id:"rough_terrain", name:"Rough Terrain Crane", type:"Mobile (RT)",
-      desc:"Short-range, stable on bumps. Best in cluttered yards.",
-      caps:{planarMove:false, baseMove:true, slew:true, telescope:true, luff:true},
-      stats:{maxLoad:13, moveSpeed:190, hoistSpeed:0.92, slewSpeed:1.45, telSpeed:200, stability:0.88, damping:0.90},
-      perk:"+Very stable", drawback:"-Shorter reach",
-      limits:{rMin:80, rMax:480}
-    },
-    {
-      id:"crawler_lattice", name:"Crawler Crane (Lattice Boom)", type:"Heavy Lift (Crawler)",
-      desc:"Big capacity, slow control. Inertia is real — plan moves.",
-      caps:{planarMove:false, baseMove:true, slew:true, telescope:false, luff:true},
-      stats:{maxLoad:18, moveSpeed:150, hoistSpeed:0.85, slewSpeed:1.05, telSpeed:0, stability:0.95, damping:0.92},
-      perk:"+High capacity", drawback:"-Slow & heavy",
-      limits:{rMin:90, rMax:640}
-    },
-    {
-      id:"pick_carry", name:"Pick & Carry Crane", type:"Industrial (Carrydeck)",
-      desc:"Move the crane with load. Swing control matters a lot.",
-      caps:{planarMove:false, baseMove:true, slew:true, telescope:false, luff:false},
-      stats:{maxLoad:9, moveSpeed:260, hoistSpeed:0.95, slewSpeed:1.75, telSpeed:0, stability:0.72, damping:0.86},
-      perk:"+Carry loads", drawback:"-Unstable if rushed",
-      limits:{rMin:80, rMax:420}
-    },
-    {
-      id:"knuckle_boom", name:"Knuckle Boom (Hiab-style)", type:"Loader Crane",
-      desc:"Short reach, precise work. Great for surgical placements.",
-      caps:{planarMove:false, baseMove:true, slew:true, telescope:true, luff:true},
-      stats:{maxLoad:8, moveSpeed:220, hoistSpeed:1.05, slewSpeed:2.05, telSpeed:260, stability:0.86, damping:0.93},
-      perk:"+High precision", drawback:"-Limited capacity & reach",
-      limits:{rMin:60, rMax:380}
-    }
+  // Plan checks UI
+  const gateStatus = $("gateStatus");
+  const autoTag = $("autoTag");
+  const chkPick = $("chkPick"), chkSet = $("chkSet"), chkClear=$("chkClear"), chkUtil=$("chkUtil"), chkCol=$("chkCol");
+  const gateChecks = [...document.querySelectorAll(".gate")];
+
+  // Settings
+  const settings = {
+    grid: S.grid ?? 1,
+    dims: S.dims ?? 1,
+    split: S.split ?? "auto",
+    swingMul: parseFloat(S.swingMul ?? "1"),
+    wind: S.wind ?? 1,
+  };
+  $("setGrid").value = String(settings.grid);
+  $("setDims").value = String(settings.dims);
+  $("setSplit").value = settings.split;
+  $("setSwing").value = String(settings.swingMul);
+  $("setWind").value = String(settings.wind);
+
+  $("setGrid").onchange = (e)=>{ settings.grid = +e.target.value; S.grid=settings.grid; saveSave(S); };
+  $("setDims").onchange = (e)=>{ settings.dims = +e.target.value; S.dims=settings.dims; saveSave(S); };
+  $("setSplit").onchange = (e)=>{ settings.split = e.target.value; S.split=settings.split; saveSave(S); };
+  $("setSwing").onchange = (e)=>{ settings.swingMul = parseFloat(e.target.value); S.swingMul=String(settings.swingMul); saveSave(S); };
+  $("setWind").onchange = (e)=>{ settings.wind = +e.target.value; S.wind=settings.wind; saveSave(S); };
+
+  // ---------- Crane roster (real models, SIM behaviour) ----------
+  // Specs below are high-level public “headline” specs (capacity/boom etc). This game still uses SIM curves.
+  const cranes = [
+    { id:"ltm1110", brand:"Liebherr", model:"LTM 1110-5.2", type:"TEL",  headline:"110 t • 60 m boom", maxCapT:110, boomMin:13, boomMax:60, baseH:2.2, move:1.8, slew:0.9, luff:0.55, tel:0.8, hoist:1.6, note:"Fast 5-axle all-terrain feel." },
+    { id:"gmk5250", brand:"Grove", model:"GMK5250XL-1", type:"TEL",  headline:"250 t • 78.5 m boom", maxCapT:250, boomMin:15, boomMax:78.5, baseH:2.5, move:1.7, slew:0.85, luff:0.50, tel:0.70, hoist:1.45, note:"Big reach, steady control." },
+    { id:"ac5250", brand:"Tadano", model:"AC 5.250-2", type:"TEL",  headline:"250 t • 70 m boom", maxCapT:250, boomMin:13.4, boomMax:70, baseH:2.4, move:1.7, slew:0.88, luff:0.52, tel:0.75, hoist:1.5, note:"Crisp slewing + good mid-radius." },
+    { id:"lr1300", brand:"Liebherr", model:"LR 1300.1 SX", type:"CRAWLER", headline:"300 t • crawler", maxCapT:300, boomMin:20, boomMax:92, baseH:2.0, move:1.1, slew:0.62, luff:0.45, tel:0.0, hoist:1.3, note:"Slow travel, monster stability." },
+    { id:"ltm1450", brand:"Liebherr", model:"LTM 1450-8.1", type:"TEL", headline:"450 t • 85 m boom", maxCapT:450, boomMin:18, boomMax:85, baseH:2.7, move:1.5, slew:0.78, luff:0.45, tel:0.62, hoist:1.25, note:"Heavy iron: rewards planning." },
+    { id:"gmk6400", brand:"Grove", model:"GMK6400-1", type:"TEL",  headline:"400 t • 60 m boom", maxCapT:400, boomMin:16, boomMax:60, baseH:2.6, move:1.45, slew:0.76, luff:0.46, tel:0.62, hoist:1.25, note:"High capacity, compact boom." },
+    { id:"ac7450", brand:"Tadano", model:"AC 7.450-1", type:"TEL",  headline:"450 t class • 80 m boom", maxCapT:450, boomMin:15, boomMax:80, baseH:2.7, move:1.45, slew:0.76, luff:0.45, tel:0.60, hoist:1.22, note:"Long boom, heavy class." },
+    { id:"mk140", brand:"Liebherr", model:"MK 140-5.1E", type:"TOWER", headline:"8 t • 65 m radius", maxCapT:8, boomMin:10, boomMax:65, baseH:3.2, move:1.2, slew:0.80, luff:0.0, tel:0.0, hoist:1.55, note:"Tower-style: trolley radius game." },
   ];
 
-  // Levels: top-down yard view with "height" (hoist) controlling clearance over obstacles.
-  // Obstacles have "height" (required hoist to clear). The load has "z" (lift height).
-  const LEVELS = [
-    // Warehouse Bay
-    mkLevel("lv1", "Warehouse 1 — Starter Lift", "Place the crate into Bay A. Keep swing under control.",
-      {site:"Warehouse", rec:["overhead_bridge"], time:70, wind:0.0, swingDeg:8},
-      mkWorld(1800, 1100, [
-        obs(560, 300, 690, 40, 220, "Beam"),
-        obs(560, 760, 690, 40, 220, "Beam"),
-      ], mkTarget(1540, 840, 170, 170), mkLoad(260, 560, 80, 65, 6, "Crate"))),
-    mkLevel("lv2", "Warehouse 2 — Over the Racks", "Clear the racks by hoisting higher (watch stability).",
-      {site:"Warehouse", rec:["overhead_bridge","rail_gantry"], time:80, wind:0.0, swingDeg:7},
-      mkWorld(1800, 1100, [
-        obs(760, 510, 520, 80, 360, "Racks"),
-        obs(990, 320, 60, 520, 260, "Column"),
-      ], mkTarget(1500, 220, 200, 200), mkLoad(260, 880, 90, 70, 7, "Boxed Motor"))),
-    mkLevel("lv3", "Warehouse 3 — Tight Bay", "Narrow bay. Settle the load before release.",
-      {site:"Warehouse", rec:["overhead_bridge"], time:85, wind:0.0, swingDeg:6},
-      mkWorld(1800, 1100, [
-        obs(980, 520, 220, 380, 300, "Racks"),
-        obs(840, 240, 420, 70, 240, "Mezzanine"),
-      ], mkTarget(1520, 840, 130, 130), mkLoad(330, 250, 88, 68, 7, "Pump"))),
+  // Unlocks: start with first 2.
+  S.unlock = S.unlock ?? { ltm1110:true, gmk5250:true };
+  function isUnlocked(id){ return !!S.unlock?.[id]; }
+  function unlock(id){ S.unlock[id]=true; saveSave(S); }
 
-    // Yard & Rail
-    mkLevel("lv4", "Yard 1 — Rail Gantry", "Long travel. Mind the obstacle height.",
-      {site:"Yard", rec:["rail_gantry"], time:90, wind:0.1, swingDeg:8},
-      mkWorld(2200, 1300, [
-        obs(1060, 420, 760, 90, 320, "Containers"),
-        obs(980, 840, 920, 90, 320, "Containers"),
-      ], mkTarget(1970, 620, 170, 170), mkLoad(260, 650, 96, 76, 8, "Palletised Gear"))),
-    mkLevel("lv5", "Yard 2 — Slalom", "Route through the gaps; hoist to pass over only when needed.",
-      {site:"Yard", rec:["rail_gantry","all_terrain"], time:95, wind:0.15, swingDeg:7},
-      mkWorld(2200, 1300, [
-        obs(740, 300, 160, 750, 340, "Stack"),
-        obs(1180, 250, 160, 800, 340, "Stack"),
-        obs(1620, 300, 160, 750, 340, "Stack"),
-      ], mkTarget(1960, 1040, 180, 180), mkLoad(280, 260, 100, 80, 9, "Grillage Pack"))),
-    mkLevel("lv6", "Yard 3 — Windy Drop", "Gentle wind. Smooth inputs = small swing.",
-      {site:"Yard", rec:["all_terrain","rough_terrain"], time:100, wind:0.22, swingDeg:6},
-      mkWorld(2200, 1300, [
-        obs(920, 590, 420, 110, 360, "Low Wall"),
-        obs(1320, 560, 420, 170, 420, "Workshop"),
-      ], mkTarget(2020, 260, 170, 170), mkLoad(290, 1040, 95, 75, 9, "Valve Skid"))),
-
-    // Construction
-    mkLevel("lv7", "Site 1 — Tower Setup", "Tower crane: slew + radius. Avoid the tall core.",
-      {site:"Construction", rec:["tower_hammer"], time:105, wind:0.10, swingDeg:7},
-      mkWorld(2000, 1300, [
-        obs(960, 420, 300, 520, 560, "Core"),
-        obs(1400, 260, 450, 140, 280, "Material"),
-      ], mkTarget(1700, 1020, 170, 170), mkLoad(520, 1040, 90, 70, 8, "HVAC Unit"))),
-    mkLevel("lv8", "Site 2 — Luffing Tight", "Luffing jib: better near obstacles. Keep radius sensible.",
-      {site:"Construction", rec:["tower_luff"], time:110, wind:0.12, swingDeg:6},
-      mkWorld(2000, 1300, [
-        obs(900, 540, 520, 340, 520, "Structure"),
-        obs(1520, 340, 260, 540, 460, "Scaffold"),
-      ], mkTarget(1760, 1040, 140, 140), mkLoad(520, 280, 85, 65, 8, "Panel"))),
-    mkLevel("lv9", "Site 3 — Tower Precision", "Small landing zone. Let it settle.",
-      {site:"Construction", rec:["tower_hammer","tower_luff"], time:120, wind:0.16, swingDeg:5},
-      mkWorld(2000, 1300, [
-        obs(980, 440, 330, 480, 560, "Core"),
-        obs(1400, 780, 520, 120, 300, "Formwork"),
-      ], mkTarget(1680, 260, 120, 120), mkLoad(520, 1040, 88, 68, 8, "Duct Section"))),
-
-    // Heavy Lift
-    mkLevel("lv10", "Heavy 1 — Mobile Chart", "Radius reduces capacity. Don’t overload.",
-      {site:"Heavy Lift", rec:["all_terrain","truck_tele"], time:120, wind:0.14, swingDeg:6},
-      mkWorld(2400, 1400, [
-        obs(980, 350, 900, 120, 420, "Pipe Rack"),
-        obs(1060, 900, 860, 120, 420, "Pipe Rack"),
-        obs(1680, 560, 360, 260, 520, "Building"),
-      ], mkTarget(2180, 1020, 160, 160), mkLoad(420, 700, 115, 95, 11, "Generator"))),
-    mkLevel("lv11", "Heavy 2 — Crawler Muscle", "Slow, heavy inertia. Make one clean path.",
-      {site:"Heavy Lift", rec:["crawler_lattice"], time:130, wind:0.10, swingDeg:6},
-      mkWorld(2400, 1400, [
-        obs(860, 600, 640, 240, 560, "Process Unit"),
-        obs(1620, 300, 520, 170, 420, "Prefabs"),
-        obs(1650, 980, 520, 170, 420, "Prefabs"),
-      ], mkTarget(2200, 700, 170, 170), mkLoad(420, 280, 130, 105, 14, "Vessel Section"))),
-    mkLevel("lv12", "Heavy 3 — Pick & Carry", "Carrydeck: base moves with load. Strict stability.",
-      {site:"Heavy Lift", rec:["pick_carry"], time:125, wind:0.18, swingDeg:5},
-      mkWorld(2400, 1400, [
-        obs(930, 280, 160, 820, 420, "Stacks"),
-        obs(1320, 300, 160, 820, 420, "Stacks"),
-        obs(1710, 280, 160, 820, 420, "Stacks"),
-      ], mkTarget(2200, 1120, 140, 140), mkLoad(420, 700, 105, 85, 9, "Tool Cabin"))),
+  // ---------- Levels (site puzzles) ----------
+  // World units are “metres” for readability (still game SIM).
+  const levels = [
+    {
+      id:"yard_01", name:"Yard Warm-up", tier:1,
+      bounds:{w:120,h:80},
+      obstacles:[
+        {x:64,y:18,w:22,h:12,z:10, name:"Pipe rack"},
+        {x:30,y:52,w:20,h:10,z:6, name:"Containers"},
+      ],
+      pick:{x:18,y:18, z:0, massT:10, w:4, h:2, rot:0},
+      set:{x:102,y:62, z:0, },
+      rules:{ maxUtil:0.95, maxSwingDeg:17, maxCollisions:0 },
+      medal:{ bronze:80, silver:120, gold:170 }
+    },
+    {
+      id:"site_02", name:"Tight Access", tier:2,
+      bounds:{w:140,h:90},
+      obstacles:[
+        {x:60,y:30,w:30,h:14,z:14, name:"Steel frame"},
+        {x:36,y:70,w:34,h:10,z:9, name:"Site cabins"},
+        {x:98,y:22,w:20,h:16,z:18, name:"Substation"},
+      ],
+      pick:{x:26,y:20,z:0, massT:18, w:5, h:2.5, rot:15},
+      set:{x:122,y:78,z:0},
+      rules:{ maxUtil:0.90, maxSwingDeg:14, maxCollisions:0 },
+      medal:{ bronze:100, silver:150, gold:210 }
+    },
+    {
+      id:"plant_03", name:"Process Plant Hop", tier:3,
+      bounds:{w:180,h:110},
+      obstacles:[
+        {x:72,y:28,w:44,h:18,z:20, name:"Module bay"},
+        {x:118,y:70,w:40,h:16,z:16, name:"Pipe bridge"},
+        {x:42,y:78,w:26,h:12,z:10, name:"Stores"},
+      ],
+      pick:{x:22,y:24,z:0, massT:35, w:6, h:3, rot:-10},
+      set:{x:162,y:88,z:0},
+      rules:{ maxUtil:0.88, maxSwingDeg:12, maxCollisions:0 },
+      medal:{ bronze:130, silver:190, gold:270 }
+    },
+    {
+      id:"tower_04", name:"MK Tower Shuffle", tier:2,
+      bounds:{w:120,h:120},
+      obstacles:[
+        {x:48,y:44,w:24,h:24,z:22, name:"Building core"},
+        {x:86,y:18,w:20,h:20,z:14, name:"Laydown"},
+      ],
+      pick:{x:18,y:92,z:0, massT:4.5, w:3, h:1.6, rot:0},
+      set:{x:98,y:98,z:0},
+      rules:{ maxUtil:0.92, maxSwingDeg:16, maxCollisions:0 },
+      medal:{ bronze:90, silver:135, gold:190 }
+    },
   ];
 
-  function mkLevel(id, name, objective, meta, world){
-    return {id, name, objective, meta, world};
-  }
-  function mkWorld(w, h, obstacles, target, load){
-    return {w, h, obstacles, target, load};
-  }
-  function obs(x,y,w,h, height, label="Obstacle"){
-    return {x,y,w,h,height,label};
-  }
-  function mkTarget(x,y,w,h){
-    return {x,y,w,h};
-  }
-  function mkLoad(x,y,w,h, mass, label="Load"){
-    return {x,y,w,h,mass,label};
-  }
+  // Saved best scores
+  S.best = S.best ?? {}; // levelId -> score
 
-  /* ----------------------------- DOM ----------------------------- */
-  const $ = (q) => document.querySelector(q);
-  const c = $("#c");
-  const ctx = c.getContext("2d");
-
-  const hudCrane = $("#hudCrane");
-  const hudLevel = $("#hudLevel");
-  const hudScore = $("#hudScore");
-  const hudTime = $("#hudTime");
-  const hudSwing = $("#hudSwing");
-  const hudStab = $("#hudStab");
-  const hudHoist = $("#hudHoist");
-  const barSwing = $("#barSwing");
-  const barStab  = $("#barStab");
-  const barHoist = $("#barHoist");
-  const hint = $("#hint");
-  const subtitle = $("#subtitle");
-
-  const ovHangar = $("#ovHangar");
-  const ovLevels = $("#ovLevels");
-  const ovControls = $("#ovControls");
-  const ovSettings = $("#ovSettings");
-  const ovResult = $("#ovResult");
-
-  const hangarGrid = $("#hangarGrid");
-  const levelsGrid = $("#levelsGrid");
-  const resGrid = $("#resGrid");
-  const resTitle = $("#resTitle");
-  const resSub = $("#resSub");
-
-  const touchUI = $("#touchUI");
-  const joy = $("#joy");
-  const joyKnob = $("#joyKnob");
-  const hoist = $("#hoist");
-  const hoistFill = $("#hoistFill");
-  const hoistThumb = $("#hoistThumb");
-
-  const tAttach = $("#tAttach");
-  const tPrecision = $("#tPrecision");
-  const tSlewL = $("#tSlewL");
-  const tSlewR = $("#tSlewR");
-  const tTelIn = $("#tTelIn");
-  const tTelOut = $("#tTelOut");
-
-  /* ----------------------------- Game State ----------------------------- */
-  const audio = AudioKit();
-  let save = loadSave() || defaultSave();
-
+  // ---------- Game state ----------
   const state = {
-    mode: "menu", // menu | playing | paused | result | sandbox
-    selectedCraneId: save.unlockedCraneIds[0] || "overhead_bridge",
     levelIndex: 0,
+    craneId: (S.craneId && cranes.some(c=>c.id===S.craneId)) ? S.craneId : "ltm1110",
+    mode: "PLAN", // PLAN or OPERATE
     score: 0,
-    time: 0,
-    levelTimeLimit: 90,
-    medalsEarnedThisRun: 0,
-    control: { // merged input
-      moveX: 0, moveY: 0, // -1..1
-      hoist: 0, // -1..1 (up/down)
-      slew: 0, // -1..1
-      telescope: 0, // -1..1
-      luff: 0, // -1..1 (not fully used)
-      attachPressed: false,
-      precision: false,
-      restartPressed: false,
-      pausePressed: false
-    },
-    touch: {
-      joyActive:false, joyId:null, joyX:0, joyY:0,
-      hoistActive:false, hoistId:null, hoistT:0.5, // 0 top (up), 1 bottom (down)
-      btn: {attach:false, prec:false, slewL:false, slewR:false, telIn:false, telOut:false}
-    },
-    keyboard: new Set(),
-    pointers: new Map(),
-    camera: {x:0,y:0, shake:0},
-    fx: {banner:"", bannerT:0, flash:0},
-    debug: {}
-  };
-
-  // Sim world runtime objects
-  const sim = {
-    worldW: 2000,
-    worldH: 1200,
-    obstacles: [],
-    target: {x:0,y:0,w:0,h:0},
-    load: null,
-    attached: false,
-    loadOnGround: true,
-    settleT: 0,
-    lastCollisionT: 99,
     collisions: 0,
-    maxSwingDeg: 0,
-    stability: 1.0,
-    overload: false,
-    wind: 0
+    attached: false,
+    precision: false,
+    timeStart: nowMs(),
   };
 
-  // Crane runtime (kinematics + velocity)
+  function getCrane(){ return cranes.find(c=>c.id===state.craneId) || cranes[0]; }
+  function getLevel(){ return levels[state.levelIndex]; }
+
+  // ---------- World objects ----------
+  // Camera for TOP view
+  const cam = {
+    x: 60, y: 40, zoom: 6.5, // pixels per metre-ish (adjusted in resize)
+    dragging:false, dragKind:null, // "pan" | "crane" | "pick" | "set"
+    dragOff:{x:0,y:0},
+  };
+
+  // Crane configuration (SIM)
   const crane = {
-    id: "overhead_bridge",
-    // base / bridge / hook kinematics
-    baseX: 500, baseY: 600,
-    x: 500, y: 600, // current hook target point in XY (for planar move cranes)
+    x: 40, y: 40,         // base in top view
+    slew: 0,              // radians
+    boomL: 45,            // metres
+    luff: deg2rad(55),    // boom angle above horizontal
+    hoist: 12,            // hook line length below tip (m)
+    trolley: 28,          // for TOWER type: radius along jib
+  };
+
+  // Load (SIM)
+  const load = {
+    x: 0, y: 0,           // in top view
     vx: 0, vy: 0,
-    angle: 0, angV: 0, // slew rad
-    radius: 200, radV: 0,
-    // hoist
-    z: 320, zV: 0, // height above ground in "units"
-    // previous hook for swing estimation
-    hookX: 500, hookY: 600,
-    hookVX: 0, hookVY: 0
+    rot: 0, vr: 0,
+    z: 0,                 // on ground = 0
   };
 
-  /* ----------------------------- Difficulty tuning ----------------------------- */
-  const diffParams = () => {
-    const d = save.settings.difficulty;
-    if (d === "casual")  return {swingMult:1.25, stabMult:1.25};
-    if (d === "pro")     return {swingMult:0.85, stabMult:0.85};
-    return {swingMult:1.0, stabMult:1.0};
+  // ---------- Input ----------
+  const keys = new Set();
+  window.addEventListener("keydown", (e)=>{
+    if (["Space","ArrowUp","ArrowDown","ArrowLeft","ArrowRight"].includes(e.code)) e.preventDefault();
+    keys.add(e.code);
+    if (e.code==="Space") toggleAttach();
+    if (e.code==="ShiftLeft"||e.code==="ShiftRight") state.precision = true;
+    if (e.code==="Escape") closeAllOv();
+  }, {passive:false});
+  window.addEventListener("keyup", (e)=>{
+    keys.delete(e.code);
+    if (e.code==="ShiftLeft"||e.code==="ShiftRight") state.precision = false;
+  });
+
+  // Touch controls -> update axes
+  const touch = {
+    active:false,
+    moveX:0, moveY:0, // left joystick
+    hoist:0,          // -1..+1 (up/down)
+    slew:0,           // -1..+1
+    luff:0,           // -1..+1
+    precision:false,
   };
 
-  /* ----------------------------- Selection helpers ----------------------------- */
-  const getCrane = (id) => CRANES.find(c=>c.id===id) || CRANES[0];
-  const getLevel = (idx) => LEVELS[clamp(idx, 0, LEVELS.length-1)];
-
-  function totalMedals() {
-    let t = 0;
-    for (const k in save.medalsByLevel) t += (save.medalsByLevel[k]||0);
-    return t;
+  const isMobile = () => matchMedia("(pointer: coarse)").matches;
+  const touchUI = $("touchUI");
+  function updateTouchUI(){
+    const on = isMobile();
+    touchUI.classList.toggle("on", on);
   }
-  function unlockLogic(){
-    // Unlock new cranes based on medals (simple progression)
-    const medalCount = totalMedals();
-    const unlocks = [
-      {id:"rail_gantry", need:2},
-      {id:"tower_hammer", need:4},
-      {id:"tower_luff", need:6},
-      {id:"truck_tele", need:8},
-      {id:"all_terrain", need:10},
-      {id:"rough_terrain", need:12},
-      {id:"crawler_lattice", need:15},
-      {id:"pick_carry", need:18},
-      {id:"knuckle_boom", need:20},
-    ];
-    for (const u of unlocks){
-      if (medalCount >= u.need && !save.unlockedCraneIds.includes(u.id)){
-        save.unlockedCraneIds.push(u.id);
-      }
+  updateTouchUI();
+  window.addEventListener("resize", updateTouchUI);
+
+  const joy = { id:null, cx:0, cy:0, kx:0, ky:0 };
+  const pad = $("touchPad"), knob = $("joyKnob");
+  pad.addEventListener("pointerdown", (e)=>{
+    pad.setPointerCapture(e.pointerId);
+    joy.id = e.pointerId;
+    const r = pad.getBoundingClientRect();
+    joy.cx = r.left + r.width/2; joy.cy = r.top + r.height/2;
+    joy.kx = e.clientX; joy.ky = e.clientY;
+    onJoyMove(e);
+  });
+  pad.addEventListener("pointermove", (e)=>{ if(e.pointerId===joy.id) onJoyMove(e); });
+  pad.addEventListener("pointerup", (e)=>{ if(e.pointerId===joy.id) { joy.id=null; touch.moveX=0; touch.moveY=0; renderJoy(0,0); } });
+  function onJoyMove(e){
+    const r = pad.getBoundingClientRect();
+    const max = Math.min(r.width, r.height)*0.34;
+    const dx = e.clientX - joy.cx, dy = e.clientY - joy.cy;
+    const m = Math.hypot(dx,dy) || 1;
+    const ndx = (m>max) ? dx/m*max : dx;
+    const ndy = (m>max) ? dy/m*max : dy;
+    touch.moveX = clamp(ndx/max, -1, 1);
+    touch.moveY = clamp(ndy/max, -1, 1);
+    renderJoy(ndx, ndy);
+  }
+  function renderJoy(dx,dy){
+    knob.style.left = `calc(50% + ${dx}px)`;
+    knob.style.top  = `calc(50% + ${dy}px)`;
+  }
+
+  // Hoist slider
+  const ho = { id:null, pct:0.5 };
+  const hoistEl = $("hoist"), hoFill=$("hoistFill"), hoThumb=$("hoistThumb");
+  hoistEl.addEventListener("pointerdown", (e)=>{
+    hoistEl.setPointerCapture(e.pointerId);
+    ho.id = e.pointerId;
+    onHoMove(e);
+  });
+  hoistEl.addEventListener("pointermove", (e)=>{ if(e.pointerId===ho.id) onHoMove(e); });
+  hoistEl.addEventListener("pointerup", (e)=>{ if(e.pointerId===ho.id) { ho.id=null; touch.hoist=0; } });
+  function onHoMove(e){
+    const r = hoistEl.getBoundingClientRect();
+    const y = clamp((e.clientY - r.top) / r.height, 0, 1);
+    ho.pct = y;
+    // Map: top=hoist up (-1), bottom=down (+1)
+    touch.hoist = clamp((y - 0.5) * 2, -1, 1);
+    hoFill.style.height = `${(1-y)*100}%`;
+    hoThumb.style.top = `calc(${y*100}% - 27px)`;
+  }
+
+  // Buttons
+  const tAttach=$("tAttach"), tPrec=$("tPrec"), tSlew=$("tSlew"), tLuff=$("tLuff");
+  tAttach.addEventListener("pointerdown", ()=>toggleAttach());
+  tPrec.addEventListener("pointerdown", ()=>{
+    touch.precision = !touch.precision;
+    tPrec.classList.toggle("on", touch.precision);
+  });
+  // Slew + luff toggles: hold-to-use
+  let slewHold=false, luffHold=false;
+  tSlew.addEventListener("pointerdown", (e)=>{ tSlew.setPointerCapture(e.pointerId); slewHold=true; });
+  tSlew.addEventListener("pointerup", ()=>{ slewHold=false; touch.slew=0; });
+  tSlew.addEventListener("pointermove", (e)=>{
+    if(!slewHold) return;
+    const r = tSlew.getBoundingClientRect();
+    touch.slew = clamp(((e.clientX - r.left)/r.width - 0.5)*2, -1, 1);
+  });
+
+  tLuff.addEventListener("pointerdown", (e)=>{ tLuff.setPointerCapture(e.pointerId); luffHold=true; });
+  tLuff.addEventListener("pointerup", ()=>{ luffHold=false; touch.luff=0; });
+  tLuff.addEventListener("pointermove", (e)=>{
+    if(!luffHold) return;
+    const r = tLuff.getBoundingClientRect();
+    // top = luff up (+), bottom = down (-)
+    const y = (e.clientY - r.top)/r.height;
+    touch.luff = clamp((0.5 - y)*2, -1, 1);
+  });
+
+  // ---------- Canvas ----------
+  const canvas = $("c");
+  const ctx = canvas.getContext("2d");
+  let W=0,H=0,DPR=1;
+
+  function resize(){
+    DPR = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+    W = canvas.clientWidth; H = canvas.clientHeight;
+    canvas.width = Math.floor(W*DPR);
+    canvas.height = Math.floor(H*DPR);
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+    // sensible default zoom based on viewport
+    const lv = getLevel();
+    cam.zoom = Math.min(10, Math.max(3.6, Math.min(W,H) / Math.max(lv.bounds.w, lv.bounds.h) * 0.84));
+  }
+  window.addEventListener("resize", resize);
+  resize();
+
+  // ---------- Viewport layout ----------
+  function getLayout(){
+    const split = settings.split;
+    const isWide = (W/H) >= 1.25;
+    const mode = (split==="auto") ? (isWide ? "wide" : "tall") : split;
+
+    const pad = 10;
+    if(mode==="wide"){
+      const leftW = Math.floor(W*0.64);
+      return {
+        mode,
+        top:  {x:pad, y:pad, w:leftW - pad*1.5, h:H - pad*2},
+        side: {x:leftW, y:pad, w:W-leftW - pad, h:H - pad*2},
+      };
+    } else {
+      const topH = Math.floor(H*0.60);
+      return {
+        mode,
+        top:  {x:pad, y:pad, w:W - pad*2, h:topH - pad*1.5},
+        side: {x:pad, y:topH, w:W - pad*2, h:H-topH - pad},
+      };
     }
   }
 
-  /* ----------------------------- UI Panels ----------------------------- */
-  const showOverlay = (ov, on) => ov.classList.toggle("on", !!on);
-  const closeAllOverlays = () => { [ovHangar, ovLevels, ovControls, ovSettings, ovResult].forEach(o=>showOverlay(o,false)); };
+  // ---------- Coordinate transforms ----------
+  function worldToTopPx(wx, wy, vp){
+    const x = (wx - cam.x)*cam.zoom + (vp.x + vp.w/2);
+    const y = (wy - cam.y)*cam.zoom + (vp.y + vp.h/2);
+    return {x,y};
+  }
+  function topPxToWorld(px, py, vp){
+    const wx = (px - (vp.x + vp.w/2))/cam.zoom + cam.x;
+    const wy = (py - (vp.y + vp.h/2))/cam.zoom + cam.y;
+    return {x:wx,y:wy};
+  }
 
-  function renderHangar(){
-    unlockLogic();
-    const medals = totalMedals();
-    hangarGrid.innerHTML = "";
-    CRANES.forEach(cr => {
-      const unlocked = save.unlockedCraneIds.includes(cr.id);
-      const tile = document.createElement("div");
-      tile.className = "tile" + (unlocked ? "" : " locked");
-      const isSel = state.selectedCraneId === cr.id;
+  // Side view is a section along crane slew direction, distance along boom line = s
+  // We'll map: x_axis = distance from crane base along slew direction, y_axis = height (z)
+  const sideCam = { s:0, z:12, zoom: 6.0 };
+  function sideToPx(s, z, vp){
+    const x = (s - sideCam.s)*sideCam.zoom + (vp.x + vp.w*0.18);
+    const y = (vp.y + vp.h*0.86) - (z - sideCam.z)*sideCam.zoom;
+    return {x,y};
+  }
 
-      const caps = [];
-      if (cr.caps.planarMove) caps.push("Bridge+Trolley");
-      if (cr.caps.baseMove) caps.push("Drive");
-      if (cr.caps.slew) caps.push("Slew");
-      if (cr.caps.telescope) caps.push("Telescope");
-      if (cr.caps.luff) caps.push("Luff");
+  // ---------- Entities (level init) ----------
+  function resetToLevel(idx){
+    state.levelIndex = idx;
+    state.score = 0;
+    state.collisions = 0;
+    state.attached = false;
+    state.mode = "PLAN";
+    state.timeStart = nowMs();
 
-      tile.innerHTML = `
+    // Default positions
+    const lv = getLevel();
+    cam.x = lv.bounds.w/2; cam.y = lv.bounds.h/2;
+
+    crane.x = lv.bounds.w*0.45;
+    crane.y = lv.bounds.h*0.55;
+    crane.slew = -Math.PI/8;
+    const c = getCrane();
+    crane.boomL = clamp(lv.bounds.w*0.36, c.boomMin, c.boomMax);
+    crane.luff  = deg2rad(55);
+    crane.hoist = 12;
+
+    if(c.type==="TOWER"){
+      crane.trolley = 28;
+      crane.luff = deg2rad(70); // used as a cosmetic
+    }
+
+    // Load at pick
+    load.x = lv.pick.x;
+    load.y = lv.pick.y;
+    load.vx = load.vy = 0;
+    load.rot = deg2rad(lv.pick.rot || 0);
+    load.vr = 0;
+    load.z = 0;
+
+    // Gate checkboxes default to saved or reset
+    const gate = S.gate ?? {};
+    gateChecks.forEach(cb => cb.checked = !!gate[cb.dataset.key]);
+    computePlanGate();
+    updateHud();
+  }
+
+  // ---------- Panels build ----------
+  function buildHangar(){
+    const grid = $("hangarGrid");
+    grid.innerHTML = "";
+    cranes.forEach(c=>{
+      const unlocked = isUnlocked(c.id);
+      const el = document.createElement("div");
+      el.className = "tile" + (unlocked ? "" : " locked");
+      el.innerHTML = `
         <div class="tileTop">
           <div>
-            <b>${cr.name}</b>
-            <div class="mini">${cr.type} • ${caps.join(" · ") || "Basic"}</div>
+            <b>${c.brand} ${c.model}</b>
+            <div class="mini">${c.headline}</div>
           </div>
-          <span class="tag ${unlocked ? "ok" : "bad"}">${unlocked ? (isSel ? "Selected" : "Unlocked") : "Locked"}</span>
+          <span class="tag ${unlocked ? "ok" : "bad"}">${unlocked ? "Unlocked" : "Locked"}</span>
         </div>
-        <div class="mini">${cr.desc}</div>
         <div class="stats">
-          ${stat("Max load", cr.stats.maxLoad.toFixed(0)+" t (game)")}
-          ${stat("Move", Math.round(cr.stats.moveSpeed)+" u/s")}
-          ${stat("Hoist", (cr.stats.hoistSpeed*100).toFixed(0)+"%")}
-          ${stat("Stability", (cr.stats.stability*100).toFixed(0)+"%")}
-          <div class="mini" style="margin-top:2px;color:rgba(233,238,247,.85)"><span style="color:var(--mut)">Perk:</span> ${cr.perk}<br><span style="color:var(--mut)">Drawback:</span> ${cr.drawback}</div>
+          <div class="statline"><span>Type</span><b>${c.type}</b></div>
+          <div class="statline"><span>Max (headline)</span><b>${c.maxCapT} t</b></div>
+          <div class="statline"><span>Boom</span><b>${c.boomMin}–${c.boomMax} m</b></div>
         </div>
+        <div class="mini">${c.note}</div>
         <div class="tileBtns">
-          <button class="btn small ${unlocked ? "primary" : ""}" ${unlocked ? "" : "disabled"} data-act="select" data-id="${cr.id}">${isSel ? "Selected" : "Select"}</button>
-          <button class="btn small" data-act="try" data-id="${cr.id}" ${unlocked ? "" : "disabled"}>Try Sandbox</button>
+          <button class="btn small ${unlocked ? "primary" : ""}" ${unlocked ? "" : "disabled"}>Select</button>
+          ${unlocked ? "" : `<button class="btn small">Unlock (demo)</button>`}
         </div>
       `;
-      hangarGrid.appendChild(tile);
-    });
-
-    function stat(k,v){
-      return `<div class="statline"><span>${k}</span><code>${v}</code></div>`;
-    }
-
-    hangarGrid.querySelectorAll("button[data-act]").forEach(b=>{
-      b.addEventListener("click", () => {
-        const act = b.getAttribute("data-act");
-        const id = b.getAttribute("data-id");
-        if (!save.unlockedCraneIds.includes(id)) return;
-        if (act === "select"){ state.selectedCraneId = id; audio.click(); renderHangar(); }
-        if (act === "try"){ state.selectedCraneId = id; audio.click(); startSandbox(); closeAllOverlays(); }
+      const [selectBtn, unlockBtn] = el.querySelectorAll("button");
+      selectBtn?.addEventListener("click", ()=>{
+        state.craneId = c.id; S.craneId = c.id; saveSave(S);
+        closeAllOv(); resetToLevel(state.levelIndex);
       });
+      unlockBtn?.addEventListener("click", ()=>{
+        unlock(c.id);
+        buildHangar();
+      });
+      grid.appendChild(el);
     });
-
-    subtitle.textContent = `Unlocked cranes: ${save.unlockedCraneIds.length}/${CRANES.length} • Medals: ${medals}`;
   }
 
-  function renderLevels(){
-    levelsGrid.innerHTML = "";
-    LEVELS.forEach((lv, idx) => {
-      const best = save.bestScoreByLevel[lv.id] || 0;
-      const medal = save.medalsByLevel[lv.id] || 0;
-      const unlockedLevel = idx === 0 || (save.medalsByLevel[LEVELS[idx-1].id] || 0) > 0; // need at least bronze previous
-
-      const tile = document.createElement("div");
-      tile.className = "tile" + (unlockedLevel ? "" : " locked");
-
-      const medalTag = medal==3 ? "🥇 Gold" : medal==2 ? "🥈 Silver" : medal==1 ? "🥉 Bronze" : "—";
-      const rec = lv.meta.rec.map(id => getCrane(id).name.split(" (")[0]).join(", ");
-
-      tile.innerHTML = `
+  function buildLevels(){
+    const grid = $("levelGrid");
+    grid.innerHTML = "";
+    levels.forEach((lv, i)=>{
+      const best = S.best[lv.id] ?? null;
+      const el = document.createElement("div");
+      el.className = "tile";
+      el.innerHTML = `
         <div class="tileTop">
           <div>
             <b>${lv.name}</b>
-            <div class="mini">${lv.meta.site} • Recommended: ${rec}</div>
+            <div class="mini">Tier ${lv.tier} • ${lv.bounds.w}×${lv.bounds.h} m</div>
           </div>
-          <span class="tag ${medal? "ok":" "}">${medalTag}</span>
+          <span class="tag">Best: ${best ?? "—"}</span>
         </div>
-        <div class="mini">${lv.objective}</div>
         <div class="stats">
-          ${stat("Time limit", lv.meta.time+"s")}
-          ${stat("Wind", (lv.meta.wind*100).toFixed(0)+"%")}
-          ${stat("Swing target", lv.meta.swingDeg+"°")}
-          ${stat("Best score", best.toLocaleString())}
+          <div class="statline"><span>Load</span><b>${lv.pick.massT} t</b></div>
+          <div class="statline"><span>Obstacles</span><b>${lv.obstacles.length}</b></div>
+          <div class="statline"><span>Rules</span><b>util ≤ ${Math.round(lv.rules.maxUtil*100)}%</b></div>
         </div>
         <div class="tileBtns">
-          <button class="btn small primary" ${unlockedLevel ? "" : "disabled"} data-act="play" data-idx="${idx}">Play</button>
-          <button class="btn small" data-act="inspect" data-idx="${idx}">Inspect</button>
+          <button class="btn small primary">Load level</button>
         </div>
       `;
-      levelsGrid.appendChild(tile);
-    });
-
-    function stat(k,v){
-      return `<div class="statline"><span>${k}</span><code>${v}</code></div>`;
-    }
-
-    levelsGrid.querySelectorAll("button[data-act]").forEach(b=>{
-      b.addEventListener("click", () => {
-        const act = b.getAttribute("data-act");
-        const idx = +b.getAttribute("data-idx");
-        if (act === "inspect") { audio.click(); state.levelIndex = idx; startLevel(idx, false, true); }
-        if (act === "play") { audio.click(); state.levelIndex = idx; startLevel(idx, true, false); closeAllOverlays(); }
+      el.querySelector("button").addEventListener("click", ()=>{
+        closeAllOv();
+        resetToLevel(i);
       });
+      grid.appendChild(el);
     });
   }
 
-  function showResult(win, breakdown){
-    state.mode = "result";
-    showOverlay(ovResult, true);
-    resTitle.textContent = win ? "Level Complete ✅" : "Failed Lift ❌";
-    resSub.textContent = breakdown.subtitle;
+  // ---------- Plan gate ----------
+  function computePlanGate(){
+    const gate = {};
+    gateChecks.forEach(cb => gate[cb.dataset.key] = cb.checked);
+    S.gate = gate; saveSave(S);
 
-    resGrid.innerHTML = "";
-    breakdown.items.forEach(it=>{
-      const tile = document.createElement("div");
-      tile.className = "tile";
-      tile.innerHTML = `<b>${it.title}</b><div class="mini">${it.body}</div>`;
-      resGrid.appendChild(tile);
-    });
+    // Minimum gate: AP + scope + crane + ground + zone
+    const minOk = !!(gate.ap && gate.scope && gate.crane && gate.ground && gate.zone);
+    gateStatus.textContent = `Gate: ${minOk ? "ready" : "locked"}`;
+    gateStatus.className = "tag " + (minOk ? "ok" : "bad");
+    return minOk;
   }
+  gateChecks.forEach(cb => cb.addEventListener("change", computePlanGate));
 
-  /* ----------------------------- Controls: Desktop ----------------------------- */
-  window.addEventListener("keydown", (e) => {
-    if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(e.key)) e.preventDefault();
-    state.keyboard.add(e.key.toLowerCase());
-    if (e.key === "Escape") state.control.pausePressed = true;
-    if (e.key.toLowerCase() === "r") state.control.restartPressed = true;
-    if (e.key === " ") state.control.attachPressed = true;
-  }, {passive:false});
-
-  window.addEventListener("keyup", (e) => {
-    state.keyboard.delete(e.key.toLowerCase());
-  });
-
-  function readDesktopControls(){
-    const K = state.keyboard;
-    const move = {x:0,y:0};
-    // Arrow keys are "planar move" by default
-    if (K.has("arrowleft") || K.has("a")) move.x -= 1;
-    if (K.has("arrowright") || K.has("d")) move.x += 1;
-    if (K.has("arrowup")) move.y -= 1;
-    if (K.has("arrowdown")) move.y += 1;
-
-    const ho = (K.has("w") ? -1 : 0) + (K.has("s") ? 1 : 0); // up is negative UI, we'll translate later
-    const slew = (K.has("j") ? -1 : 0) + (K.has("l") ? 1 : 0) + (K.has("arrowleft") ? -0 : 0); // use J/L primarily
-    const slewAlt = (K.has("q") ? -1 : 0) + (K.has("e") ? 1 : 0); // optional, but Q/E used for other in some games
-
-    const tel = (K.has("z") ? -1 : 0) + (K.has("c") ? 1 : 0);
-    const precision = K.has("shift") || K.has("shiftleft") || K.has("shiftright");
-
-    // Desktop mapping:
-    // - moveX/moveY from arrows/A/D
-    // - hoist from W/S
-    // - slew from J/L OR Q/E if you prefer (we blend a bit)
-    state.control.moveX = clamp(move.x, -1, 1);
-    state.control.moveY = clamp(move.y, -1, 1);
-    state.control.hoist = clamp(ho, -1, 1);
-    state.control.slew = clamp(slew + 0.6*slewAlt, -1, 1);
-    state.control.telescope = clamp(tel, -1, 1);
-    state.control.precision = !!precision;
-  }
-
-  /* ----------------------------- Controls: Mobile Touch UI ----------------------------- */
-  function setTouchUI(on){
-    touchUI.classList.toggle("on", !!on);
-  }
-
-  function joyLocal(e){
-    const r = joy.getBoundingClientRect();
-    const x = clamp((e.clientX - r.left) / r.width, 0, 1);
-    const y = clamp((e.clientY - r.top) / r.height, 0, 1);
-    return {x, y, r};
-  }
-  function hoistLocal(e){
-    const r = hoist.getBoundingClientRect();
-    const y = clamp((e.clientY - r.top) / r.height, 0, 1);
-    return {t:y, r};
-  }
-
-  function applyTouchVisuals(){
-    // joystick: state.touch.joyX/Y in -1..1
-    const r = joy.getBoundingClientRect();
-    const spanX = (r.width/2 - 36);
-    const spanY = (r.height/2 - 36);
-    joyKnob.style.transform = `translate(${state.touch.joyX*spanX}px, ${state.touch.joyY*spanY}px)`;
-
-    // hoist: state.touch.hoistT 0..1
-    const r2 = hoist.getBoundingClientRect();
-    const inset = 14;
-    const usable = r2.height - inset*2 - 54;
-    const top = inset + state.touch.hoistT * usable;
-    hoistThumb.style.top = `${top}px`;
-    const fillH = (1 - state.touch.hoistT) * 100;
-    hoistFill.style.height = `${fillH}%`;
-  }
-
-  function bindTouch(){
-    // joystick pointer events
-    joy.addEventListener("pointerdown", (e)=>{
-      joy.setPointerCapture(e.pointerId);
-      state.touch.joyActive = true;
-      state.touch.joyId = e.pointerId;
-      const {x,y} = joyLocal(e);
-      state.touch.joyX = (x - 0.5) * 2;
-      state.touch.joyY = (y - 0.5) * 2;
-      applyTouchVisuals();
-    });
-    joy.addEventListener("pointermove", (e)=>{
-      if (!state.touch.joyActive || e.pointerId !== state.touch.joyId) return;
-      const {x,y} = joyLocal(e);
-      state.touch.joyX = clamp((x - 0.5) * 2, -1, 1);
-      state.touch.joyY = clamp((y - 0.5) * 2, -1, 1);
-      applyTouchVisuals();
-    });
-    joy.addEventListener("pointerup", (e)=>{
-      if (e.pointerId !== state.touch.joyId) return;
-      state.touch.joyActive = false;
-      state.touch.joyId = null;
-      state.touch.joyX = 0; state.touch.joyY = 0;
-      applyTouchVisuals();
-    });
-
-    // hoist slider
-    hoist.addEventListener("pointerdown", (e)=>{
-      hoist.setPointerCapture(e.pointerId);
-      state.touch.hoistActive = true;
-      state.touch.hoistId = e.pointerId;
-      const {t} = hoistLocal(e);
-      state.touch.hoistT = t;
-      applyTouchVisuals();
-    });
-    hoist.addEventListener("pointermove", (e)=>{
-      if (!state.touch.hoistActive || e.pointerId !== state.touch.hoistId) return;
-      const {t} = hoistLocal(e);
-      state.touch.hoistT = t;
-      applyTouchVisuals();
-    });
-    hoist.addEventListener("pointerup", (e)=>{
-      if (e.pointerId !== state.touch.hoistId) return;
-      state.touch.hoistActive = false;
-      state.touch.hoistId = null;
-    });
-
-    // buttons (hold)
-    const holdBtn = (el, key) => {
-      const down = () => { state.touch.btn[key] = true; el.classList.add("on"); };
-      const up = () => { state.touch.btn[key] = false; el.classList.remove("on"); };
-      el.addEventListener("pointerdown", (e)=>{ el.setPointerCapture(e.pointerId); down(); });
-      el.addEventListener("pointerup", up);
-      el.addEventListener("pointercancel", up);
-      el.addEventListener("pointerleave", up);
-    };
-
-    // attach is tap (edge triggered)
-    tAttach.addEventListener("pointerdown", (e)=>{
-      tAttach.setPointerCapture(e.pointerId);
-      state.control.attachPressed = true;
-      audio.click();
-      tAttach.classList.add("on");
-      setTimeout(()=>tAttach.classList.remove("on"), 120);
-    });
-
-    // precision toggle/hold
-    tPrecision.addEventListener("pointerdown", (e)=>{
-      tPrecision.setPointerCapture(e.pointerId);
-      state.touch.btn.prec = !state.touch.btn.prec;
-      tPrecision.classList.toggle("on", state.touch.btn.prec);
-      audio.click();
-    });
-
-    holdBtn(tSlewL, "slewL");
-    holdBtn(tSlewR, "slewR");
-    holdBtn(tTelIn, "telIn");
-    holdBtn(tTelOut, "telOut");
-  }
-
-  function readMobileControls(){
-    // joystick XY
-    let x = state.touch.joyX;
-    let y = state.touch.joyY;
-    // Optional swap hands: if swapped, we'd swap joystick/hoist roles,
-    // but we keep it simple: swap in UI via CSS positioning (see applySwapHands()).
-    state.control.moveX = clamp(x, -1, 1);
-    state.control.moveY = clamp(y, -1, 1);
-
-    // hoist slider: map thumb position to hoist velocity
-    // mid = hold, above mid = hoist up, below mid = hoist down
-    const dead = 0.08;
-    const d = (state.touch.hoistT - 0.5);
-    let ho = 0;
-    if (Math.abs(d) > dead) ho = clamp(d / 0.5, -1, 1);
-    // slider top -> hoist up => negative
-    state.control.hoist = clamp(ho, -1, 1);
-
-    // Slew/telescope hold buttons
-    state.control.slew = (state.touch.btn.slewL ? -1 : 0) + (state.touch.btn.slewR ? 1 : 0);
-    state.control.telescope = (state.touch.btn.telIn ? -1 : 0) + (state.touch.btn.telOut ? 1 : 0);
-    state.control.precision = !!state.touch.btn.prec;
-  }
-
-  function applySwapHands(){
-    const swap = !!save.settings.swapHands;
-    // crude swap: flip left/right panels
-    const joyEl = $("#joy");
-    const rightEl = document.querySelector(".touchRight");
-    if (!joyEl || !rightEl) return;
-    if (!swap){
-      joyEl.style.left = "12px"; joyEl.style.right = "";
-      rightEl.style.right = "12px"; rightEl.style.left = "";
-    } else {
-      joyEl.style.right = "12px"; joyEl.style.left = "";
-      rightEl.style.left = "12px"; rightEl.style.right = "";
-    }
-  }
-
-  /* ----------------------------- Buttons / Chrome UI ----------------------------- */
-  $("#btnHangar").addEventListener("click", ()=>{ audio.click(); renderHangar(); showOverlay(ovHangar,true); });
-  $("#btnLevels").addEventListener("click", ()=>{ audio.click(); renderLevels(); showOverlay(ovLevels,true); });
-  $("#btnControls").addEventListener("click", ()=>{ audio.click(); showOverlay(ovControls,true); });
-  $("#btnSettings").addEventListener("click", ()=>{ audio.click(); syncSettingsUI(); showOverlay(ovSettings,true); });
-  $("#btnRestart").addEventListener("click", ()=>{ audio.click(); restartLevel(); });
-  $("#btnPlay").addEventListener("click", ()=>{ audio.click(); startLevel(state.levelIndex, true, false); });
-
-  $("#btnCloseHangar").addEventListener("click", ()=>{ audio.click(); showOverlay(ovHangar,false); });
-  $("#btnCloseLevels").addEventListener("click", ()=>{ audio.click(); showOverlay(ovLevels,false); });
-  $("#btnCloseControls").addEventListener("click", ()=>{ audio.click(); showOverlay(ovControls,false); });
-  $("#btnCloseSettings").addEventListener("click", ()=>{ audio.click(); showOverlay(ovSettings,false); });
-  $("#btnSandbox").addEventListener("click", ()=>{ audio.click(); startSandbox(); closeAllOverlays(); });
-
-  $("#btnResClose").addEventListener("click", ()=>{ audio.click(); showOverlay(ovResult,false); state.mode = "playing"; });
-  $("#btnResNext").addEventListener("click", ()=>{
-    audio.click();
-    showOverlay(ovResult,false);
-    // next level if possible
-    const nxt = clamp(state.levelIndex + 1, 0, LEVELS.length-1);
-    state.levelIndex = nxt;
-    startLevel(nxt, true, false);
-  });
-
-  // Settings buttons
-  $("#modeAuto").addEventListener("click", ()=>{ save.settings.controlMode = "auto"; syncSettingsUI(); applyControlMode(); persist(); });
-  $("#modeDesktop").addEventListener("click", ()=>{ save.settings.controlMode = "desktop"; syncSettingsUI(); applyControlMode(); persist(); });
-  $("#modeMobile").addEventListener("click", ()=>{ save.settings.controlMode = "mobile"; syncSettingsUI(); applyControlMode(); persist(); });
-  $("#modeSwapHands").addEventListener("click", ()=>{ save.settings.swapHands = !save.settings.swapHands; applySwapHands(); syncSettingsUI(); persist(); audio.click(); });
-
-  $("#togShake").addEventListener("click", ()=>{ save.settings.shake = !save.settings.shake; syncSettingsUI(); persist(); audio.click(); });
-  $("#togAudio").addEventListener("click", ()=>{ save.settings.audio = !save.settings.audio; audio.setEnabled(save.settings.audio); syncSettingsUI(); persist(); audio.click(); });
-  $("#togGrid").addEventListener("click", ()=>{ save.settings.grid = !save.settings.grid; syncSettingsUI(); persist(); audio.click(); });
-
-  $("#diffCasual").addEventListener("click", ()=>{ save.settings.difficulty = "casual"; syncSettingsUI(); persist(); audio.click(); });
-  $("#diffStandard").addEventListener("click", ()=>{ save.settings.difficulty = "standard"; syncSettingsUI(); persist(); audio.click(); });
-  $("#diffPro").addEventListener("click", ()=>{ save.settings.difficulty = "pro"; syncSettingsUI(); persist(); audio.click(); });
-
-  $("#wipeData").addEventListener("click", ()=>{
-    if (!confirm("Reset all progress & settings?")) return;
-    save = defaultSave();
-    persist();
-    audio.click();
-    renderHangar();
-    renderLevels();
-    syncSettingsUI();
-    applyControlMode();
-  });
-
-  function persist(){ saveSave(save); }
-
-  function syncSettingsUI(){
-    $("#tagMode").textContent = save.settings.controlMode[0].toUpperCase() + save.settings.controlMode.slice(1);
-    $("#tagDiff").textContent = save.settings.difficulty[0].toUpperCase() + save.settings.difficulty.slice(1);
-
-    $("#togShake").textContent = `Screen shake: ${save.settings.shake ? "On" : "Off"}`;
-    $("#togAudio").textContent = `Audio: ${save.settings.audio ? "On" : "Off"}`;
-    $("#togGrid").textContent = `Grid: ${save.settings.grid ? "On" : "Off"}`;
-
-    applySwapHands();
-    audio.setEnabled(save.settings.audio);
-  }
-
-  /* ----------------------------- Control mode & touch UI availability ----------------------------- */
-  function applyControlMode(){
-    const m = save.settings.controlMode;
-    const auto = hasTouch();
-    let useTouch = false;
-    if (m === "auto") useTouch = auto;
-    if (m === "mobile") useTouch = true;
-    if (m === "desktop") useTouch = false;
-
-    setTouchUI(useTouch);
-    applySwapHands();
-  }
-
-  /* ----------------------------- Simulation Setup ----------------------------- */
-  function resetSimToLevel(level, keepScore=false){
-    const cr = getCrane(state.selectedCraneId);
-    state.mode = "playing";
-    state.time = 0;
-    if (!keepScore) state.score = 0;
-
-    sim.worldW = level.world.w;
-    sim.worldH = level.world.h;
-    sim.obstacles = JSON.parse(JSON.stringify(level.world.obstacles));
-    sim.target = JSON.parse(JSON.stringify(level.world.target));
-
-    const L = level.world.load;
-    sim.load = {
-      x: L.x, y: L.y, w: L.w, h: L.h,
-      // velocity for swing model
-      vx: 0, vy: 0,
-      // height above ground (z)
-      z: 0,
-      mass: L.mass,
-      label: L.label
-    };
-
-    sim.attached = false;
-    sim.loadOnGround = true;
-    sim.settleT = 0;
-    sim.lastCollisionT = 99;
-    sim.collisions = 0;
-    sim.maxSwingDeg = 0;
-    sim.stability = 1.0;
-    sim.overload = false;
-    sim.wind = level.meta.wind || 0;
-
-    // Crane default pose depends on type
-    crane.id = cr.id;
-    if (cr.caps.planarMove){
-      crane.x = 260; crane.y = sim.worldH/2;
-      crane.vx = 0; crane.vy = 0;
-      crane.baseX = crane.x; crane.baseY = crane.y;
-      crane.angle = 0; crane.angV = 0;
-      crane.radius = 260; crane.radV = 0;
-    } else {
-      // base cranes start left-mid
-      crane.baseX = 520; crane.baseY = sim.worldH * 0.5;
-      crane.vx = 0; crane.vy = 0;
-      crane.angle = 0; crane.angV = 0;
-      crane.radius = cr.limits ? (cr.limits.rMin + (cr.limits.rMax-cr.limits.rMin)*0.45) : 260;
-      crane.radV = 0;
-    }
-
-    crane.z = 280; crane.zV = 0;
-    crane.hookX = crane.x; crane.hookY = crane.y;
-    crane.hookVX = 0; crane.hookVY = 0;
-
-    // time limit
-    state.levelTimeLimit = level.meta.time || 90;
-
-    // camera
-    state.camera.x = sim.worldW/2;
-    state.camera.y = sim.worldH/2;
-    state.camera.shake = 0;
-
-    // fx
-    state.fx.banner = "";
-    state.fx.bannerT = 0;
-    state.fx.flash = 0;
-
-    hint.textContent = level.objective;
-    updateHUD();
-  }
-
-  function startLevel(idx, startForReal=true, inspectOnly=false){
-    closeAllOverlays();
-    const lv = getLevel(idx);
-    resetSimToLevel(lv, false);
-    if (inspectOnly){
-      // pause but allow panning visually
-      state.mode = "paused";
-      state.fx.banner = "INSPECT MODE";
-      state.fx.bannerT = 1.5;
+  // Operate button
+  $("btnPlay").onclick = () => {
+    const ok = computePlanGate();
+    if(!ok){
+      openOv("ovPlan");
       return;
     }
-    state.mode = "playing";
-    state.levelIndex = idx;
-    state.score = startForReal ? (state.score || 0) : 0;
-    applyControlMode();
-  }
+    state.mode = "OPERATE";
+    closeAllOv();
+    updateHud();
+  };
 
-  function startSandbox(){
-    // Sandbox reuses a level-like world but no timer and wide-open obstacles
-    const lv = mkLevel("sandbox","Sandbox","Try cranes freely. No timer. Practice smooth moves.",
-      {site:"Sandbox", rec:[state.selectedCraneId], time:9999, wind:0.05, swingDeg:999},
-      mkWorld(2400, 1400, [
-        obs(980, 560, 420, 110, 420, "Shop"),
-        obs(1520, 300, 260, 620, 480, "Stacks"),
-        obs(340, 260, 260, 620, 360, "Racks"),
-      ], mkTarget(2100, 1040, 190, 190), mkLoad(540, 1040, 110, 90, 8, "Practice Load"))
-    );
-    resetSimToLevel(lv, false);
-    state.mode = "playing";
-    state.levelIndex = 0;
-    state.levelTimeLimit = 999999;
-    hint.textContent = "SANDBOX: practise movement + hoist clearance. Use Attach to pick/drop.";
-  }
+  // Restart
+  $("btnRestart").onclick = () => resetToLevel(state.levelIndex);
 
-  function restartLevel(){
-    const lv = getLevel(state.levelIndex);
-    resetSimToLevel(lv, false);
-    audio.click();
-  }
-
-  /* ----------------------------- Capacity / Stability Model ----------------------------- */
-  function capacityAt(cr, radius, z){
-    // Simple "load chart" approximation:
-    // capacity drops with radius; luff/telescope implied via radius.
-    // Overhead/gantry use flat capacity.
-    if (cr.caps.planarMove) return cr.stats.maxLoad;
-
-    const r = Math.max(60, radius);
-    const ref = 220;
-    const drop = Math.pow(ref / r, 1.15);
-    const cap = cr.stats.maxLoad * clamp(drop, 0.22, 1.35);
-
-    // If hoist is very high, slightly reduce capacity (simulating hooks/reeving complexity)
-    const zFactor = clamp(1.05 - (z/800)*0.12, 0.90, 1.05);
-    return cap * zFactor;
-  }
-
-  function updateStability(cr, dt, accelMag, swingDeg){
-    const p = diffParams();
-    // Stability drains with harsh acceleration + big swing, recovers slowly when calm.
-    const harsh = accelMag / Math.max(1, cr.stats.moveSpeed);
-    const swing = (swingDeg/12) * (1/cr.stats.damping);
-    const drain = (harsh*0.65 + swing*0.25) * (1.0/cr.stats.stability) / p.stabMult;
-
-    sim.stability = clamp(sim.stability - drain * dt * 0.9, 0, 1);
-
-    // recovery when calm
-    const calm = clamp(1 - harsh*2.2 - swing*1.2, 0, 1);
-    sim.stability = clamp(sim.stability + calm * dt * 0.06, 0, 1);
-  }
-
-  /* ----------------------------- Attachment / Placement ----------------------------- */
-  function canAttach(){
-    const dx = sim.load.x - crane.hookX;
-    const dy = sim.load.y - crane.hookY;
-    const d = Math.hypot(dx, dy);
-    const near = d < 85;
-    const low = crane.z < 120; // hook low enough to latch
-    return near && low && sim.loadOnGround;
-  }
-
-  function attach(){
-    if (sim.attached) return;
-    if (!canAttach()) return;
-    sim.attached = true;
-    sim.loadOnGround = false;
-    // reset velocities for a clean start
-    sim.load.vx *= 0.2; sim.load.vy *= 0.2;
-    audio.attach();
-    banner("ATTACHED", 0.9);
-  }
-
-  function detach(){
-    if (!sim.attached) return;
-    // Allow detach only when low enough (placing)
-    if (crane.z > 140){
-      banner("LOWER TO PLACE", 0.8);
-      audio.warn();
-      return;
-    }
-    sim.attached = false;
-    sim.loadOnGround = true;
-    sim.load.vx *= 0.0; sim.load.vy *= 0.0;
-    audio.detach();
-    banner("RELEASED", 0.7);
-  }
-
-  function checkWin(dt){
-    const l = sim.load;
-    if (!sim.loadOnGround) { sim.settleT = 0; return false; }
-    // must be inside target bounds and "settled"
-    const inside = aabb(l.x-l.w/2, l.y-l.h/2, l.w, l.h, sim.target.x, sim.target.y, sim.target.w, sim.target.h);
-    if (!inside) { sim.settleT = 0; return false; }
-    if (sim.lastCollisionT < 1.0) { sim.settleT = 0; return false; }
-    // require low swing recently (max offset)
-    const swingOk = sim.maxSwingDeg < getLevel(state.levelIndex).meta.swingDeg * diffParams().swingMult;
-    // and stability not destroyed
-    const stabOk = sim.stability > 0.15;
-    if (!swingOk || !stabOk) { sim.settleT = 0; return false; }
-    sim.settleT += dt;
-    return sim.settleT > 0.75;
-  }
-
-  function checkFail(){
-    if (sim.stability <= 0.001){
-      banner("INSTABILITY FAILURE", 1.0);
-      return true;
-    }
-    return false;
-  }
-
-  /* ----------------------------- Collisions ----------------------------- */
-  function aabb(ax,ay,aw,ah, bx,by,bw,bh){
-    return ax < bx+bw && ax+aw > bx && ay < by+bh && ay+ah > by;
-  }
-
-  function resolveLoadObstacle(o){
-    // Only collide when the load is low enough (not cleared)
-    // If load.z is below obstacle height => contact
-    if (sim.load.z > o.height + 18) return false;
-
-    const l = sim.load;
-    const lx = l.x - l.w/2, ly = l.y - l.h/2;
-    if (!aabb(lx,ly,l.w,l.h, o.x,o.y,o.w,o.h)) return false;
-
-    // push out minimal axis
-    const dx1 = (o.x + o.w) - lx;          // push left
-    const dx2 = (lx + l.w) - o.x;          // push right
-    const dy1 = (o.y + o.h) - ly;          // push up
-    const dy2 = (ly + l.h) - o.y;          // push down
-    const minX = Math.min(dx1, dx2);
-    const minY = Math.min(dy1, dy2);
-
-    if (minX < minY){
-      if (dx1 < dx2) l.x = (o.x + o.w) + l.w/2;
-      else          l.x = (o.x) - l.w/2;
-      l.vx *= -0.35;
+  // ---------- Attach / detach ----------
+  function getHook(){
+    const c = getCrane();
+    if(c.type==="TOWER"){
+      const r = clamp(crane.trolley, 5, c.boomMax);
+      const hx = crane.x + r*Math.cos(crane.slew);
+      const hy = crane.y + r*Math.sin(crane.slew);
+      const tipZ = c.baseH + 38; // tower mast height (SIM)
+      const hookZ = clamp(tipZ - crane.hoist, 0, 80);
+      return {x:hx,y:hy,z:hookZ,r};
     } else {
-      if (dy1 < dy2) l.y = (o.y + o.h) + l.h/2;
-      else          l.y = (o.y) - l.h/2;
-      l.vy *= -0.35;
+      const L = clamp(crane.boomL, c.boomMin, c.boomMax);
+      const theta = clamp(crane.luff, deg2rad(15), deg2rad(82));
+      const r = L*Math.cos(theta);
+      const tipZ = c.baseH + L*Math.sin(theta);
+      const hookZ = clamp(tipZ - crane.hoist, 0, tipZ);
+      const hx = crane.x + r*Math.cos(crane.slew);
+      const hy = crane.y + r*Math.sin(crane.slew);
+      return {x:hx,y:hy,z:hookZ,r};
     }
+  }
 
-    sim.collisions += 1;
-    sim.lastCollisionT = 0;
-    state.camera.shake = Math.min(1, state.camera.shake + 0.35);
-    state.fx.flash = Math.min(1, state.fx.flash + 0.25);
-    if (save.settings.audio) audio.thud();
+  function toggleAttach(){
+    if(state.mode!=="OPERATE") return;
+    const lv = getLevel();
+    const hk = getHook();
+    const near = dist(load.x,load.y,hk.x,hk.y) < 2.2;
+    const onGround = load.z < 0.25;
+    if(!state.attached){
+      if(near && onGround){
+        state.attached = true;
+        state.score += 10;
+      }
+    } else {
+      // Detach: if within set zone and close to ground
+      const nearSet = dist(load.x,load.y,lv.set.x,lv.set.y) < 3.5;
+      if(nearSet && hk.z < 2.2){
+        state.attached = false;
+        load.z = 0;
+        state.score += 70;
+        // Win condition
+        const time = (nowMs() - state.timeStart)/1000;
+        const bonus = Math.max(0, 120 - time);
+        const utilPenalty = Math.max(0, (state._utilPeak ?? 0) - lv.rules.maxUtil) * 200;
+        const swingPenalty = Math.max(0, (state._swingPeak ?? 0) - lv.rules.maxSwingDeg) * 6;
+        const colPenalty = state.collisions * 250;
+        const final = Math.max(0, Math.floor(state.score + bonus - utilPenalty - swingPenalty - colPenalty));
+        state.score = final;
 
-    // impacts drain stability
-    sim.stability = clamp(sim.stability - 0.06, 0, 1);
+        // save best
+        const best = S.best[lv.id] ?? 0;
+        if(final > best) { S.best[lv.id] = final; saveSave(S); }
+
+        // unlock next crane (tiny reward loop)
+        const eligible = cranes.filter(c=>!isUnlocked(c.id));
+        if(eligible.length){
+          unlock(eligible[0].id);
+        }
+        state.mode = "PLAN";
+        openOv("ovLevels");
+      }
+    }
+    updateHud();
+  }
+
+  // ---------- SIMPLE SIM "capacity curve" ----------
+  // Not a load chart. This is deliberately fake/gamey.
+  function capAtRadiusT(cr, r){
+    // Crude curve: falls with radius; also affected by boom length (heavier boom = slightly less cap)
+    const L = clamp(crane.boomL, cr.boomMin, cr.boomMax);
+    const r0 = 8 + (cr.maxCapT>200? 10 : 6);
+    const base = cr.maxCapT * (r0 / (r + r0));
+    const boomPenalty = lerp(0.92, 0.72, (L - cr.boomMin)/(cr.boomMax - cr.boomMin + 1e-6));
+    const typeBoost = (cr.type==="CRAWLER") ? 1.08 : 1.0;
+    const towerBoost = (cr.type==="TOWER") ? 0.78 : 1.0;
+    return Math.max(0.5, base * boomPenalty * typeBoost * towerBoost);
+  }
+
+  // ---------- Collision (OBB load footprint vs AABB obstacles) ----------
+  function obbAabbCollide(ox,oy,ow,oh, theta, ax,ay,aw,ah){
+    // OBB corners
+    const cx=ox, cy=oy;
+    const hw=ow/2, hh=oh/2;
+    const c=Math.cos(theta), s=Math.sin(theta);
+    const pts = [
+      {x: cx + ( c*hw - s*hh), y: cy + ( s*hw + c*hh)},
+      {x: cx + (-c*hw - s*hh), y: cy + (-s*hw + c*hh)},
+      {x: cx + (-c*hw + s*hh), y: cy + (-s*hw - c*hh)},
+      {x: cx + ( c*hw + s*hh), y: cy + ( s*hw - c*hh)},
+    ];
+
+    // Axes: OBB normals + world X/Y
+    const axes = [
+      {x: c, y: s},
+      {x:-s, y: c},
+      {x: 1, y: 0},
+      {x: 0, y: 1},
+    ];
+
+    const aMinX = ax - aw/2, aMaxX = ax + aw/2;
+    const aMinY = ay - ah/2, aMaxY = ay + ah/2;
+
+    for(const axv of axes){
+      // project OBB
+      let minO=Infinity, maxO=-Infinity;
+      for(const p of pts){
+        const pr = p.x*axv.x + p.y*axv.y;
+        minO = Math.min(minO, pr);
+        maxO = Math.max(maxO, pr);
+      }
+      // project AABB corners
+      const corners = [
+        {x:aMinX,y:aMinY},{x:aMaxX,y:aMinY},{x:aMaxX,y:aMaxY},{x:aMinX,y:aMaxY}
+      ];
+      let minA=Infinity, maxA=-Infinity;
+      for(const p of corners){
+        const pr = p.x*axv.x + p.y*axv.y;
+        minA = Math.min(minA, pr);
+        maxA = Math.max(maxA, pr);
+      }
+      if(maxO < minA || maxA < minO) return false;
+    }
     return true;
   }
 
-  /* ----------------------------- Main Update ----------------------------- */
-  function banner(text, t=1.0){
-    state.fx.banner = text;
-    state.fx.bannerT = t;
-  }
+  // ---------- Clearance check (ray from crane to load passes over obstacle) ----------
+  function clearanceOK(hookZ){
+    const lv = getLevel();
+    // if any obstacle intersects the segment base->load then require hookZ above obstacle height + margin
+    const bx = crane.x, by = crane.y;
+    const lx = load.x, ly = load.y;
+    const dx = lx - bx, dy = ly - by;
+    const segLen = Math.hypot(dx,dy) + 1e-9;
 
-  function updateHUD(){
-    const lv = getLevel(state.levelIndex);
-    const cr = getCrane(state.selectedCraneId);
-    hudCrane.textContent = cr.name;
-    hudLevel.textContent = lv.name;
-    hudScore.textContent = Math.floor(state.score).toLocaleString();
-    hudTime.textContent = fmtTime(state.time);
+    for(const o of lv.obstacles){
+      // AABB segment intersection (Liang–Barsky style)
+      const minX = o.x - o.w/2, maxX = o.x + o.w/2;
+      const minY = o.y - o.h/2, maxY = o.y + o.h/2;
 
-    const swing = sim.maxSwingDeg;
-    hudSwing.textContent = swing.toFixed(1) + "°";
-
-    const stab = Math.round(sim.stability * 100);
-    hudStab.textContent = stab + "%";
-
-    const ho = Math.round(clamp(crane.z/720, 0, 1) * 100);
-    hudHoist.textContent = ho + "%";
-
-    barSwing.style.width = `${clamp(swing / 20, 0, 1) * 100}%`;
-    barStab.style.width = `${clamp(sim.stability, 0, 1) * 100}%`;
-    barHoist.style.width = `${clamp(crane.z/720, 0, 1) * 100}%`;
-  }
-
-  function updateControlStack(){
-    const mode = save.settings.controlMode;
-    const useTouch = (mode === "mobile") || (mode === "auto" && hasTouch());
-
-    // edge resets (these are "pressed once")
-    // attachPressed is set by desktop space or mobile tap; we consume after use
-    // restartPressed/pausePressed likewise.
-    if (!useTouch) readDesktopControls();
-    else readMobileControls();
-
-    // Convert joystick Y (screen) to planar Y (up negative)
-    // Our world coords: y increases down. Joystick up should move up (negative world y).
-    // state.control.moveY is from joystick (already -1..1, where down positive due to screen),
-    // so we invert for world motion:
-    state.control.moveY = -state.control.moveY;
-
-    // Precision reduces all motion
-    if (state.control.precision){
-      state.control.moveX *= 0.38;
-      state.control.moveY *= 0.38;
-      state.control.slew *= 0.45;
-      state.control.telescope *= 0.45;
-      state.control.hoist *= 0.42;
-    }
-  }
-
-  function updateCrane(dt){
-    const cr = getCrane(state.selectedCraneId);
-    const p = diffParams();
-
-    // previous hook velocity for stability estimation
-    const prevHX = crane.hookX, prevHY = crane.hookY;
-    const prevHVX = crane.hookVX, prevHVY = crane.hookVY;
-
-    // hoist: slider gives -1..1 (up/down). Our crane.z is "height above ground"
-    const hoistSpeed = 520 * cr.stats.hoistSpeed;
-    crane.zV = lerp(crane.zV, -state.control.hoist * hoistSpeed, 1 - Math.pow(0.0001, dt));
-    crane.z += crane.zV * dt;
-    crane.z = clamp(crane.z, 40, 720);
-
-    // planar move cranes: direct hook XY movement
-    if (cr.caps.planarMove){
-      const accel = 2400 * (cr.stats.stability) * (state.control.precision ? 0.65 : 1.0);
-      // smooth acceleration
-      crane.vx = lerp(crane.vx, state.control.moveX * cr.stats.moveSpeed, 1 - Math.pow(0.0001, dt*2.2));
-      crane.vy = lerp(crane.vy, state.control.moveY * cr.stats.moveSpeed, 1 - Math.pow(0.0001, dt*2.2));
-      // integrate
-      crane.x += crane.vx * dt;
-      crane.y += crane.vy * dt;
-
-      // bounds
-      crane.x = clamp(crane.x, 120, sim.worldW - 120);
-      crane.y = clamp(crane.y, 120, sim.worldH - 120);
-
-      crane.hookX = crane.x;
-      crane.hookY = crane.y;
-    } else {
-      // base move
-      if (cr.caps.baseMove){
-        const sp = cr.stats.moveSpeed;
-        crane.vx = lerp(crane.vx, state.control.moveX * sp, 1 - Math.pow(0.0001, dt*2.0));
-        crane.vy = lerp(crane.vy, state.control.moveY * sp, 1 - Math.pow(0.0001, dt*2.0));
-        crane.baseX += crane.vx * dt;
-        crane.baseY += crane.vy * dt;
-        crane.baseX = clamp(crane.baseX, 160, sim.worldW - 160);
-        crane.baseY = clamp(crane.baseY, 160, sim.worldH - 160);
-      } else {
-        // towers are fixed-ish; allow tiny pan for gameplay friendliness
-        crane.baseX = clamp(crane.baseX + state.control.moveX * 40 * dt, 160, sim.worldW - 160);
-        crane.baseY = clamp(crane.baseY + state.control.moveY * 40 * dt, 160, sim.worldH - 160);
+      let t0=0, t1=1;
+      const p = [-dx, dx, -dy, dy];
+      const q = [bx - minX, maxX - bx, by - minY, maxY - by];
+      let ok = true;
+      for(let i=0;i<4;i++){
+        if(Math.abs(p[i]) < 1e-9){
+          if(q[i] < 0){ ok=false; break; }
+        } else {
+          const t = q[i]/p[i];
+          if(p[i] < 0){ t0 = Math.max(t0, t); }
+          else { t1 = Math.min(t1, t); }
+          if(t0 > t1){ ok=false; break; }
+        }
       }
-
-      // slew + radius
-      if (cr.caps.slew){
-        const slewSp = cr.stats.slewSpeed;
-        crane.angV = lerp(crane.angV, state.control.slew * slewSp, 1 - Math.pow(0.0001, dt*2.2));
-        crane.angle += crane.angV * dt;
+      if(ok){
+        const margin = 1.5; // metres (SIM)
+        const required = o.z + margin;
+        if(hookZ < required) return false;
       }
-
-      let rMin = 80, rMax = 520;
-      if (cr.limits){ rMin = cr.limits.rMin; rMax = cr.limits.rMax; }
-      if (cr.caps.telescope){
-        const telSp = cr.stats.telSpeed;
-        crane.radV = lerp(crane.radV, state.control.telescope * telSp, 1 - Math.pow(0.0001, dt*2.0));
-        crane.radius += crane.radV * dt;
-      } else {
-        // tower hammerhead uses "trolley" without telescope: we still allow radius control via telescope input
-        crane.radV = lerp(crane.radV, state.control.telescope * 220, 1 - Math.pow(0.0001, dt*2.0));
-        crane.radius += crane.radV * dt;
-      }
-      crane.radius = clamp(crane.radius, rMin, rMax);
-
-      // hook position
-      crane.hookX = crane.baseX + Math.cos(crane.angle) * crane.radius;
-      crane.hookY = crane.baseY + Math.sin(crane.angle) * crane.radius;
-
-      // keep hook inside world
-      crane.hookX = clamp(crane.hookX, 60, sim.worldW - 60);
-      crane.hookY = clamp(crane.hookY, 60, sim.worldH - 60);
     }
-
-    // Hook velocity and acceleration magnitude for stability model
-    crane.hookVX = (crane.hookX - prevHX) / Math.max(1e-6, dt);
-    crane.hookVY = (crane.hookY - prevHY) / Math.max(1e-6, dt);
-    const ax = (crane.hookVX - prevHVX) / Math.max(1e-6, dt);
-    const ay = (crane.hookVY - prevHVY) / Math.max(1e-6, dt);
-    const accelMag = Math.hypot(ax, ay);
-
-    // overload check (only matters if attached and lifted)
-    const cap = capacityAt(cr, cr.caps.planarMove ? 220 : crane.radius, crane.z);
-    sim.overload = sim.attached && (sim.load.mass > cap + 0.01) && (crane.z > 160);
-
-    if (sim.overload){
-      // Stop hoisting further up and bleed stability slowly
-      crane.z = Math.min(crane.z, 220);
-      sim.stability = clamp(sim.stability - 0.05 * dt, 0, 1);
-      if (Math.random() < 0.02) state.fx.flash = Math.min(1, state.fx.flash + 0.08);
-    }
-
-    // Track stability drain
-    updateStability(cr, dt, accelMag, sim.maxSwingDeg);
+    return true;
   }
 
-  function updateLoad(dt){
-    const cr = getCrane(state.selectedCraneId);
+  // ---------- Plan checks (auto) ----------
+  function updatePlanChecks(){
+    const lv = getLevel();
+    const cr = getCrane();
+    const hk = getHook();
 
-    // Update collision timer
-    sim.lastCollisionT += dt;
+    const rp = dist(crane.x,crane.y, lv.pick.x, lv.pick.y);
+    const rs = dist(crane.x,crane.y, lv.set.x, lv.set.y);
+    const capP = capAtRadiusT(cr, rp);
+    const utilP = lv.pick.massT / capP;
 
-    // Height of load based on hoist: if attached and lifted, z follows hook z (with a small offset)
-    const lifted = sim.attached && crane.z > 120 && !sim.overload;
-
-    if (sim.attached){
-      // When near ground (pickup), snap to hook
-      if (!lifted){
-        sim.load.x = lerp(sim.load.x, crane.hookX, 1 - Math.pow(0.0001, dt*3.5));
-        sim.load.y = lerp(sim.load.y, crane.hookY, 1 - Math.pow(0.0001, dt*3.5));
-        sim.load.vx *= 0.4; sim.load.vy *= 0.4;
-        sim.load.z = 0;
-      } else {
-        // Swing model (2D damped "pendulum-ish" following):
-        // smaller rope length (higher hoist) => stiffer coupling (less swing)
-        const rope = clamp(crane.z, 120, 720); // rope proxy
-        const g = 1400; // tuned game gravity analogue
-        const k = (g / rope) * 2.2; // spring stiffness
-        const c = (1.2 - cr.stats.damping) * 28 + 6; // damping coefficient from crane's damping stat
-
-        // Wind adds small drift to load
-        const wind = (sim.wind || 0) * 180;
-        const wx = wind * (0.25 + 0.75*Math.sin(state.time * 0.55));
-        const wy = wind * (0.25 + 0.75*Math.cos(state.time * 0.37));
-
-        const dx = sim.load.x - crane.hookX;
-        const dy = sim.load.y - crane.hookY;
-
-        // acceleration towards hook + damping + wind
-        const ax = -k * dx - c * sim.load.vx + wx;
-        const ay = -k * dy - c * sim.load.vy + wy;
-
-        sim.load.vx += ax * dt;
-        sim.load.vy += ay * dt;
-
-        sim.load.x += sim.load.vx * dt;
-        sim.load.y += sim.load.vy * dt;
-
-        // load height
-        sim.load.z = Math.max(40, crane.z - 90);
-
-        // constrain within world
-        sim.load.x = clamp(sim.load.x, sim.load.w/2 + 2, sim.worldW - sim.load.w/2 - 2);
-        sim.load.y = clamp(sim.load.y, sim.load.h/2 + 2, sim.worldH - sim.load.h/2 - 2);
-
-        // Swing angle approximation: tan(theta)=offset/rope
-        const off = Math.hypot(dx, dy);
-        const theta = Math.atan2(off, rope);
-        const deg = theta * 180/Math.PI;
-        sim.maxSwingDeg = Math.max(sim.maxSwingDeg, deg);
-      }
-    } else {
-      // on ground: no motion
-      sim.load.z = 0;
-      sim.load.vx *= 0.0;
-      sim.load.vy *= 0.0;
-    }
-
-    // Collide with obstacles based on clearance
-    if (sim.attached && lifted){
-      for (const o of sim.obstacles) resolveLoadObstacle(o);
-    }
-  }
-
-  function updateGame(dt){
-    if (state.mode === "paused") return;
-
-    // pause/restart events
-    if (state.control.pausePressed){
-      state.control.pausePressed = false;
-      state.mode = (state.mode === "playing") ? "paused" : "playing";
-      banner(state.mode === "paused" ? "PAUSED" : "RESUMED", 0.8);
-      audio.click();
-    }
-    if (state.control.restartPressed){
-      state.control.restartPressed = false;
-      restartLevel();
-    }
-
-    // Timer
-    state.time += dt;
-    const lv = getLevel(state.levelIndex);
-    const isSandbox = (lv.id === "sandbox" || state.levelTimeLimit > 90000);
-    if (!isSandbox && state.time > state.levelTimeLimit){
-      onFail("Time limit exceeded.");
-      return;
-    }
-
-    // Attach/detach (edge)
-    if (state.control.attachPressed){
-      state.control.attachPressed = false;
-      if (!sim.attached) attach();
-      else detach();
-    }
-
-    updateCrane(dt);
-    updateLoad(dt);
-
-    // UI warning for attach
-    if (canAttach()){
-      hint.textContent = "Hook in range — ATTACH now (Space / ATTACH).";
-    } else {
-      hint.textContent = lv.objective;
-    }
-
-    // Fail checks
-    if (checkFail()){
-      onFail("Instability exceeded.");
-      return;
-    }
-
-    // Win check
-    if (checkWin(dt)){
-      onWin();
-      return;
-    }
-
-    // Scoring drip: minimal, encourages clean lifts
-    // (You score mainly on completion; this just avoids '0' during play.)
-    if (sim.attached && crane.z > 140) state.score += dt * 1.0;
-    if (sim.collisions > 0) state.score -= dt * 0.6;
-    state.score = Math.max(0, state.score);
-
-    // FX decay
-    state.camera.shake = Math.max(0, state.camera.shake - dt*1.6);
-    state.fx.bannerT = Math.max(0, state.fx.bannerT - dt);
-    state.fx.flash = Math.max(0, state.fx.flash - dt*1.8);
-
-    updateHUD();
-  }
-
-  function medalFor(score){
-    // Basic medal bands; tuned so most players can bronze, skilful gets gold.
-    if (score >= 2100) return 3;
-    if (score >= 1500) return 2;
-    if (score >= 900)  return 1;
-    return 0;
-  }
-
-  function onWin(){
-    state.mode = "paused";
-
-    const lv = getLevel(state.levelIndex);
-    const cr = getCrane(state.selectedCraneId);
-
-    // Completion score
-    const timeLeft = Math.max(0, state.levelTimeLimit - state.time);
-    const swingTarget = lv.meta.swingDeg * diffParams().swingMult;
-
-    const smoothBonus = clamp(1 - (sim.maxSwingDeg / Math.max(1, swingTarget)), 0, 1) * 950;
-    const timeBonus = clamp(timeLeft / Math.max(1, state.levelTimeLimit), 0, 1) * 650;
-    const collisionPenalty = sim.collisions * 140;
-    const stabilityBonus = sim.stability * 600;
-
-    let scoreGain = 900 + smoothBonus + timeBonus + stabilityBonus - collisionPenalty;
-    // clamp
-    scoreGain = Math.max(100, Math.floor(scoreGain));
-    state.score += scoreGain;
-
-    // medal and persistence (ignore sandbox)
-    let medal = 0;
-    if (lv.id !== "sandbox"){
-      medal = medalFor(scoreGain);
-      const prevMedal = save.medalsByLevel[lv.id] || 0;
-      if (medal > prevMedal) save.medalsByLevel[lv.id] = medal;
-
-      const prevBest = save.bestScoreByLevel[lv.id] || 0;
-      save.bestScoreByLevel[lv.id] = Math.max(prevBest, scoreGain);
-      persist();
-      unlockLogic();
-    }
-
-    banner("PLACED SAFE ✅", 1.2);
-    if (save.settings.audio) audio.success();
-
-    const breakdown = {
-      subtitle: `${lv.name} • ${cr.name} • +${scoreGain.toLocaleString()} pts`,
-      items: [
-        {title:"Time", body:`${fmtTime(state.time)} (limit ${lv.meta.time}s), bonus: ${Math.floor(timeBonus)} pts`},
-        {title:"Swing", body:`Max: ${sim.maxSwingDeg.toFixed(1)}° (target ${lv.meta.swingDeg}°), smooth bonus: ${Math.floor(smoothBonus)} pts`},
-        {title:"Collisions", body:`${sim.collisions} hits, penalty: -${collisionPenalty} pts`},
-        {title:"Stability", body:`${Math.round(sim.stability*100)}%, bonus: ${Math.floor(stabilityBonus)} pts`},
-        {title:"Medal Earned", body: (lv.id==="sandbox") ? "Sandbox (no medals)." : (medal===3?"🥇 Gold": medal===2?"🥈 Silver": medal===1?"🥉 Bronze":"— Try again for a medal.")},
-        {title:"Unlocks", body:`Total medals: ${totalMedals()} • Unlocked cranes: ${save.unlockedCraneIds.length}/${CRANES.length}`}
-      ]
-    };
-
-    showResult(true, breakdown);
-    updateHUD();
-  }
-
-  function onFail(reason){
-    state.mode = "paused";
-    if (save.settings.audio) audio.fail();
-    banner("FAILED LIFT ❌", 1.2);
-
-    const lv = getLevel(state.levelIndex);
-    const breakdown = {
-      subtitle: `${lv.name} • ${reason}`,
-      items: [
-        {title:"Reason", body: reason},
-        {title:"Time", body:`${fmtTime(state.time)} / ${lv.meta.time}s`},
-        {title:"Swing", body:`Max: ${sim.maxSwingDeg.toFixed(1)}°`},
-        {title:"Collisions", body:`${sim.collisions}`},
-        {title:"Stability", body:`${Math.round(sim.stability*100)}%`},
-        {title:"Tip", body:`Use Precision. Hoist to clear obstacles, then lower slowly and let the load settle before release.`}
-      ]
-    };
-    showResult(false, breakdown);
-    updateHUD();
-  }
-
-  /* ----------------------------- Rendering ----------------------------- */
-  let dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
-  let viewW = 0, viewH = 0;
-
-  function resize(){
-    dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
-    viewW = c.clientWidth;
-    viewH = c.clientHeight;
-    c.width = Math.floor(viewW * dpr);
-    c.height = Math.floor(viewH * dpr);
-    ctx.setTransform(dpr,0,0,dpr,0,0);
-    applyTouchVisuals();
-  }
-  window.addEventListener("resize", resize);
-
-  function worldToScreen(x,y){
-    // camera centered on middle, gently follows hook/load midpoint
-    const cx = state.camera.x;
-    const cy = state.camera.y;
-    const scale = Math.min(viewW / sim.worldW, viewH / sim.worldH) * 0.96;
-    const ox = viewW/2 - cx*scale;
-    const oy = viewH/2 - cy*scale;
-    return {x: x*scale + ox, y: y*scale + oy, s:scale, ox, oy};
-  }
-
-  function computeCamera(dt){
-    // Follow midpoint of hook and load for visibility
-    const tx = (crane.hookX + sim.load.x) * 0.5;
-    const ty = (crane.hookY + sim.load.y) * 0.5;
-    state.camera.x = lerp(state.camera.x, tx, 1 - Math.pow(0.0001, dt*0.9));
-    state.camera.y = lerp(state.camera.y, ty, 1 - Math.pow(0.0001, dt*0.9));
-
-    // Clamp camera to world bounds
-    state.camera.x = clamp(state.camera.x, sim.worldW*0.2, sim.worldW*0.8);
-    state.camera.y = clamp(state.camera.y, sim.worldH*0.2, sim.worldH*0.8);
-  }
-
-  function draw(){
-    ctx.clearRect(0,0,viewW,viewH);
-
-    // Shake
-    let shakeX = 0, shakeY = 0;
-    if (save.settings.shake && state.camera.shake > 0){
-      const amp = 7 * state.camera.shake;
-      shakeX = (Math.random()*2-1) * amp;
-      shakeY = (Math.random()*2-1) * amp;
-    }
-
-    // Background
-    ctx.save();
-    ctx.translate(shakeX, shakeY);
-
-    // subtle vignette via rectangles (cheap)
-    ctx.fillStyle = "#0b0f14";
-    ctx.fillRect(0,0,viewW,viewH);
-
-    // world transform
-    const tr0 = worldToScreen(0,0);
-    const scale = tr0.s;
-    ctx.translate(tr0.ox, tr0.oy);
-    ctx.scale(scale, scale);
-
-    // grid
-    if (save.settings.grid){
-      ctx.save();
-      ctx.globalAlpha = 0.10;
-      ctx.strokeStyle = "#8fb3ff";
-      ctx.lineWidth = 1/scale;
-      const step = 120;
-      for (let x=0; x<=sim.worldW; x+=step){
-        ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,sim.worldH); ctx.stroke();
-      }
-      for (let y=0; y<=sim.worldH; y+=step){
-        ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(sim.worldW,y); ctx.stroke();
-      }
-      ctx.restore();
-    }
-
-    // bounds
-    ctx.save();
-    ctx.strokeStyle = "rgba(255,255,255,.12)";
-    ctx.lineWidth = 2/scale;
-    roundRect(ctx, 10, 10, sim.worldW-20, sim.worldH-20, 20);
-    ctx.stroke();
-    ctx.restore();
-
-    // obstacles
-    sim.obstacles.forEach(o=>{
-      const clear = sim.load.z > o.height + 18 && sim.attached;
-      ctx.save();
-      ctx.fillStyle = clear ? "rgba(67,245,154,.12)" : "rgba(255,255,255,.06)";
-      ctx.strokeStyle = clear ? "rgba(67,245,154,.20)" : "rgba(255,255,255,.12)";
-      ctx.lineWidth = 2/scale;
-      roundRect(ctx, o.x, o.y, o.w, o.h, 18);
-      ctx.fill();
-      ctx.stroke();
-
-      ctx.globalAlpha = 0.75;
-      ctx.fillStyle = "rgba(233,238,247,.85)";
-      ctx.font = `${14/scale}px ${getComputedStyle(document.body).fontFamily}`;
-      ctx.fillText(`${o.label}  ⤒${o.height}`, o.x+14, o.y+22);
-      ctx.restore();
+    const pickOK = rp <= hk.r + 0.8; // hook radius is current
+    const setOK = rs <= hk.r + 0.8;
+    const clearOK = clearanceOK(hk.z);
+    const colRisk = lv.obstacles.some(o => {
+      // risk if current load footprint overlaps any obstacle footprint (top view)
+      const lw = lv.pick.w, lh = lv.pick.h;
+      return obbAabbCollide(load.x,load.y, lw,lh, load.rot, o.x,o.y,o.w,o.h);
     });
 
-    // target
-    ctx.save();
-    ctx.fillStyle = "rgba(79,168,255,.14)";
-    ctx.strokeStyle = "rgba(79,168,255,.28)";
-    ctx.lineWidth = 3/scale;
-    roundRect(ctx, sim.target.x, sim.target.y, sim.target.w, sim.target.h, 18);
-    ctx.fill();
-    ctx.stroke();
+    chkPick.textContent = pickOK ? "OK" : "NO";
+    chkPick.style.color = pickOK ? "var(--ok)" : "var(--bad)";
+    chkSet.textContent = setOK ? "OK" : "NO";
+    chkSet.style.color = setOK ? "var(--ok)" : "var(--bad)";
+    chkClear.textContent = clearOK ? "OK" : "LOW";
+    chkClear.style.color = clearOK ? "var(--ok)" : "var(--warn)";
+    chkUtil.textContent = `${Math.round(utilP*100)}%`;
+    chkUtil.style.color = utilP <= lv.rules.maxUtil ? "var(--ok)" : "var(--bad)";
+    chkCol.textContent = colRisk ? "RISK" : "OK";
+    chkCol.style.color = colRisk ? "var(--warn)" : "var(--ok)";
 
-    ctx.globalAlpha = 0.9;
-    ctx.fillStyle = "rgba(233,238,247,.9)";
-    ctx.font = `${14/scale}px ${getComputedStyle(document.body).fontFamily}`;
-    ctx.fillText("TARGET BAY", sim.target.x+12, sim.target.y+24);
-    ctx.restore();
-
-    // crane visualization
-    drawCrane(ctx, scale);
-
-    // rope line & hook marker
-    ctx.save();
-    ctx.strokeStyle = "rgba(233,238,247,.55)";
-    ctx.lineWidth = 2/scale;
-    ctx.beginPath();
-    ctx.moveTo(crane.hookX, crane.hookY);
-    ctx.lineTo(sim.load.x, sim.load.y);
-    ctx.stroke();
-
-    // hook
-    ctx.fillStyle = canAttach() ? "rgba(67,245,154,.95)" : "rgba(233,238,247,.9)";
-    ctx.beginPath();
-    ctx.arc(crane.hookX, crane.hookY, 7/scale, 0, Math.PI*2);
-    ctx.fill();
-    ctx.restore();
-
-    // load shadow (shows height)
-    ctx.save();
-    const shadowScale = clamp(1 - sim.load.z/720, 0.25, 0.95);
-    ctx.globalAlpha = 0.22;
-    ctx.fillStyle = "#000";
-    ctx.beginPath();
-    ctx.ellipse(sim.load.x, sim.load.y, (sim.load.w*0.55)*shadowScale, (sim.load.h*0.55)*shadowScale, 0, 0, Math.PI*2);
-    ctx.fill();
-    ctx.restore();
-
-    // load
-    ctx.save();
-    const liftGlow = sim.attached && sim.load.z>0 ? 1 : 0;
-    ctx.fillStyle = `rgba(255,255,255,${0.075 + liftGlow*0.03})`;
-    ctx.strokeStyle = sim.overload ? "rgba(255,77,109,.75)" : sim.attached ? "rgba(67,245,154,.55)" : "rgba(255,255,255,.22)";
-    ctx.lineWidth = 3/scale;
-    // draw at "height": slight offset upward visually (fake elevation)
-    const elev = -sim.load.z * 0.06;
-    roundRect(ctx, sim.load.x - sim.load.w/2, sim.load.y - sim.load.h/2 + elev, sim.load.w, sim.load.h, 16);
-    ctx.fill();
-    ctx.stroke();
-
-    ctx.globalAlpha = 0.9;
-    ctx.fillStyle = "rgba(233,238,247,.9)";
-    ctx.font = `${13/scale}px var(--mono)`;
-    ctx.fillText(`${sim.load.label}  m=${sim.load.mass}`, sim.load.x - sim.load.w/2 + 10, sim.load.y - sim.load.h/2 + 22 + elev);
-    ctx.restore();
-
-    // overlays in world: warnings
-    drawWarnings(ctx, scale);
-
-    // flash overlay
-    ctx.restore(); // back to screen space
-
-    if (state.fx.flash > 0){
-      ctx.save();
-      ctx.globalAlpha = clamp(state.fx.flash, 0, 1) * 0.22;
-      ctx.fillStyle = sim.overload ? "#ff4d6d" : "#ffffff";
-      ctx.fillRect(0,0,viewW,viewH);
-      ctx.restore();
-    }
-
-    // banner
-    if (state.fx.bannerT > 0){
-      ctx.save();
-      const t = state.fx.bannerT;
-      ctx.globalAlpha = clamp(t, 0, 1);
-      ctx.fillStyle = "rgba(15,22,33,.78)";
-      ctx.strokeStyle = "rgba(255,255,255,.10)";
-      ctx.lineWidth = 1;
-      const w = Math.min(viewW-24, 520);
-      const h = 44;
-      const x = (viewW-w)/2;
-      const y = 62;
-      roundRectPx(ctx, x, y, w, h, 16);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = "rgba(233,238,247,.95)";
-      ctx.font = `700 14px ${getComputedStyle(document.body).fontFamily}`;
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillText(state.fx.banner, x+w/2, y+h/2);
-      ctx.restore();
-    }
-
-    // hint already in DOM
+    const ok = pickOK && setOK && clearOK && !colRisk && utilP <= (lv.rules.maxUtil+0.08);
+    autoTag.textContent = ok ? "looks good" : "needs work";
+    autoTag.className = "tag " + (ok ? "ok" : "bad");
   }
 
-  function drawCrane(ctx, scale){
-    const cr = getCrane(state.selectedCraneId);
-    ctx.save();
-    ctx.lineWidth = 3/scale;
+  // ---------- HUD update ----------
+  function updateHud(){
+    const lv = getLevel();
+    const cr = getCrane();
+    hud.crane.textContent = `${cr.brand} ${cr.model}`;
+    hud.level.textContent = lv.name;
+    hud.mode.textContent = state.mode;
+    hud.score.textContent = String(state.score);
+    hud.pick.textContent = `${lv.pick.massT}t`;
+    hud.set.textContent = `(${Math.round(lv.set.x)},${Math.round(lv.set.y)})`;
+  }
 
-    // base
-    if (cr.caps.baseMove || cr.caps.slew){
-      ctx.strokeStyle = "rgba(255,255,255,.20)";
-      ctx.fillStyle = "rgba(255,255,255,.05)";
-      ctx.beginPath();
-      ctx.arc(crane.baseX, crane.baseY, 26/scale, 0, Math.PI*2);
-      ctx.fill();
-      ctx.stroke();
+  // ---------- Export SVG / DXF (TOP view) ----------
+  function exportTopSVG(){
+    const lv = getLevel();
+    const cr = getCrane();
 
-      // boom
-      ctx.strokeStyle = "rgba(79,168,255,.65)";
-      ctx.lineWidth = 6/scale;
-      ctx.beginPath();
-      ctx.moveTo(crane.baseX, crane.baseY);
-      ctx.lineTo(crane.hookX, crane.hookY);
-      ctx.stroke();
+    // Simple SVG with obstacles, pick/set, crane base, radius line to hook
+    const hk = getHook();
+    const pad = 10;
+    const w = 1000, h = 700;
+    const sx = (w - pad*2) / lv.bounds.w;
+    const sy = (h - pad*2) / lv.bounds.h;
+    const s = Math.min(sx, sy);
 
-      // radius indicator
-      ctx.lineWidth = 2/scale;
-      ctx.strokeStyle = "rgba(255,255,255,.12)";
-      ctx.beginPath();
-      ctx.arc(crane.baseX, crane.baseY, crane.radius, 0, Math.PI*2);
-      ctx.stroke();
+    function tx(x){ return pad + x*s; }
+    function ty(y){ return pad + y*s; }
 
-      // capacity label
-      const cap = capacityAt(cr, crane.radius, crane.z);
-      ctx.fillStyle = sim.overload ? "rgba(255,77,109,.95)" : "rgba(233,238,247,.85)";
-      ctx.font = `${12/scale}px var(--mono)`;
-      ctx.fillText(`cap~${cap.toFixed(1)}  r=${Math.round(crane.radius)}`, crane.baseX + 28/scale, crane.baseY - 18/scale);
+    let svg = `<?xml version="1.0" encoding="UTF-8"?>\n`;
+    svg += `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">\n`;
+    svg += `<rect width="100%" height="100%" fill="#0b1220"/>\n`;
+    svg += `<g stroke="#2a3a52" stroke-width="1" opacity="0.55">\n`;
+    for(let x=0;x<=lv.bounds.w;x+=10) svg += `<line x1="${tx(x)}" y1="${ty(0)}" x2="${tx(x)}" y2="${ty(lv.bounds.h)}"/>\n`;
+    for(let y=0;y<=lv.bounds.h;y+=10) svg += `<line x1="${tx(0)}" y1="${ty(y)}" x2="${tx(lv.bounds.w)}" y2="${ty(y)}"/>\n`;
+    svg += `</g>\n`;
+
+    // Obstacles
+    svg += `<g fill="none" stroke="#ff4d6d" stroke-width="2">\n`;
+    lv.obstacles.forEach(o=>{
+      svg += `<rect x="${tx(o.x - o.w/2)}" y="${ty(o.y - o.h/2)}" width="${o.w*s}" height="${o.h*s}"/>\n`;
+    });
+    svg += `</g>\n`;
+
+    // Pick/Set points
+    svg += `<circle cx="${tx(lv.pick.x)}" cy="${ty(lv.pick.y)}" r="${7}" fill="#ff74d4"/>\n`;
+    svg += `<circle cx="${tx(lv.set.x)}" cy="${ty(lv.set.y)}" r="${7}" fill="#43f59a"/>\n`;
+
+    // Crane base + hook line
+    svg += `<circle cx="${tx(crane.x)}" cy="${ty(crane.y)}" r="${9}" fill="#33f6ff"/>\n`;
+    svg += `<line x1="${tx(crane.x)}" y1="${ty(crane.y)}" x2="${tx(hk.x)}" y2="${ty(hk.y)}" stroke="#ffd166" stroke-width="2"/>\n`;
+    // Hook
+    svg += `<circle cx="${tx(hk.x)}" cy="${ty(hk.y)}" r="${5}" fill="#ffd166"/>\n`;
+
+    svg += `<text x="${pad}" y="${pad+16}" fill="#e9eef7" font-family="monospace" font-size="14">Crane Ops TOP view (SIM) — ${cr.brand} ${cr.model}</text>\n`;
+    svg += `</svg>\n`;
+
+    downloadText(svg, `CraneOps_TOP_${lv.id}.svg`, "image/svg+xml");
+  }
+
+  function exportTopDXF(){
+    // Minimal R12-ish DXF: LINES + CIRCLES only (TOP view)
+    const lv = getLevel();
+    const cr = getCrane();
+    const hk = getHook();
+
+    function dxfHeader(){
+      return [
+        "0","SECTION","2","HEADER","9","$ACADVER","1","AC1009","0","ENDSEC",
+        "0","SECTION","2","TABLES","0","ENDSEC",
+        "0","SECTION","2","ENTITIES"
+      ].join("\n") + "\n";
+    }
+    function dxfEnd(){ return ["0","ENDSEC","0","EOF"].join("\n"); }
+    function line(x1,y1,x2,y2,layer="0"){
+      return ["0","LINE","8",layer,"10",x1,"20",y1,"30",0,"11",x2,"21",y2,"31",0].join("\n") + "\n";
+    }
+    function circle(x,y,r,layer="0"){
+      return ["0","CIRCLE","8",layer,"10",x,"20",y,"30",0,"40",r].join("\n") + "\n";
+    }
+
+    let dxf = dxfHeader();
+
+    // bounds
+    dxf += line(0,0, lv.bounds.w,0,"BORDER");
+    dxf += line(lv.bounds.w,0, lv.bounds.w,lv.bounds.h,"BORDER");
+    dxf += line(lv.bounds.w,lv.bounds.h, 0,lv.bounds.h,"BORDER");
+    dxf += line(0,lv.bounds.h,0,0,"BORDER");
+
+    // obstacles as rectangles
+    lv.obstacles.forEach(o=>{
+      const x1=o.x-o.w/2, x2=o.x+o.w/2, y1=o.y-o.h/2, y2=o.y+o.h/2;
+      dxf += line(x1,y1,x2,y1,"NO_GO");
+      dxf += line(x2,y1,x2,y2,"NO_GO");
+      dxf += line(x2,y2,x1,y2,"NO_GO");
+      dxf += line(x1,y2,x1,y1,"NO_GO");
+    });
+
+    // pick/set
+    dxf += circle(lv.pick.x, lv.pick.y, 1.2, "PICK");
+    dxf += circle(lv.set.x,  lv.set.y,  1.2, "SET");
+
+    // crane + hook
+    dxf += circle(crane.x, crane.y, 1.5, "CRANE");
+    dxf += line(crane.x, crane.y, hk.x, hk.y, "RADIUS");
+    dxf += circle(hk.x, hk.y, 0.9, "HOOK");
+
+    dxf += dxfEnd();
+    downloadText(dxf, `CraneOps_TOP_${lv.id}.dxf`, "application/dxf");
+  }
+
+  function downloadText(text, filename, mime){
+    const blob = new Blob([text], {type: mime});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href), 2500);
+  }
+
+  $("btnExportSVG").onclick = exportTopSVG;
+  $("btnExportDXF").onclick = exportTopDXF;
+
+  // ---------- Pointer interactions (Plan mode CAD dragging + top view pan/zoom) ----------
+  let vpCached = null;
+  canvas.addEventListener("pointerdown", (e)=>{
+    const layout = getLayout();
+    vpCached = layout.top;
+    const pt = {x:e.clientX, y:e.clientY};
+
+    // Only interact with TOP view
+    if(pt.x < vpCached.x || pt.x > vpCached.x+vpCached.w || pt.y < vpCached.y || pt.y > vpCached.y+vpCached.h) return;
+
+    canvas.setPointerCapture(e.pointerId);
+
+    const w = topPxToWorld(pt.x, pt.y, vpCached);
+
+    if(state.mode === "PLAN"){
+      const lv = getLevel();
+      const hitCrane = dist(w.x,w.y, crane.x,crane.y) < 3.0;
+      const hitPick  = dist(w.x,w.y, lv.pick.x,lv.pick.y) < 3.0;
+      const hitSet   = dist(w.x,w.y, lv.set.x, lv.set.y) < 3.0;
+
+      if(hitCrane){
+        cam.dragging=true; cam.dragKind="crane";
+        cam.dragOff.x = crane.x - w.x; cam.dragOff.y = crane.y - w.y;
+      } else if(hitPick){
+        cam.dragging=true; cam.dragKind="pick";
+        cam.dragOff.x = lv.pick.x - w.x; cam.dragOff.y = lv.pick.y - w.y;
+      } else if(hitSet){
+        cam.dragging=true; cam.dragKind="set";
+        cam.dragOff.x = lv.set.x - w.x; cam.dragOff.y = lv.set.y - w.y;
+      } else {
+        cam.dragging=true; cam.dragKind="pan";
+        cam.dragOff.x = w.x; cam.dragOff.y = w.y;
+      }
     } else {
-      // overhead/gantry: show rails and hook position
-      const railPad = 110;
-      ctx.strokeStyle = "rgba(79,168,255,.45)";
-      ctx.lineWidth = 6/scale;
+      // In operate, allow panning
+      cam.dragging=true; cam.dragKind="pan";
+      const w0 = topPxToWorld(pt.x, pt.y, vpCached);
+      cam.dragOff.x = w0.x; cam.dragOff.y = w0.y;
+    }
+  });
 
-      // runway rails
-      ctx.beginPath();
-      ctx.moveTo(railPad, railPad);
-      ctx.lineTo(sim.worldW-railPad, railPad);
-      ctx.stroke();
-      ctx.beginPath();
-      ctx.moveTo(railPad, sim.worldH-railPad);
-      ctx.lineTo(sim.worldW-railPad, sim.worldH-railPad);
-      ctx.stroke();
+  canvas.addEventListener("pointermove", (e)=>{
+    if(!cam.dragging || !vpCached) return;
+    const layout = getLayout();
+    const vp = layout.top;
 
-      // bridge (Y)
-      ctx.strokeStyle = "rgba(255,255,255,.14)";
-      ctx.lineWidth = 8/scale;
-      ctx.beginPath();
-      ctx.moveTo(railPad, crane.hookY);
-      ctx.lineTo(sim.worldW-railPad, crane.hookY);
-      ctx.stroke();
+    const w = topPxToWorld(e.clientX, e.clientY, vp);
+    const lv = getLevel();
 
-      // trolley marker
-      ctx.fillStyle = "rgba(79,168,255,.85)";
-      ctx.beginPath();
-      ctx.rect(crane.hookX-12/scale, crane.hookY-10/scale, 24/scale, 20/scale);
-      ctx.fill();
-      ctx.strokeStyle = "rgba(255,255,255,.16)";
-      ctx.strokeRect(crane.hookX-12/scale, crane.hookY-10/scale, 24/scale, 20/scale);
+    if(cam.dragKind==="crane"){
+      crane.x = clamp(w.x + cam.dragOff.x, 0, lv.bounds.w);
+      crane.y = clamp(w.y + cam.dragOff.y, 0, lv.bounds.h);
+    } else if(cam.dragKind==="pick"){
+      lv.pick.x = clamp(w.x + cam.dragOff.x, 0, lv.bounds.w);
+      lv.pick.y = clamp(w.y + cam.dragOff.y, 0, lv.bounds.h);
+      if(!state.attached){ load.x=lv.pick.x; load.y=lv.pick.y; }
+    } else if(cam.dragKind==="set"){
+      lv.set.x = clamp(w.x + cam.dragOff.x, 0, lv.bounds.w);
+      lv.set.y = clamp(w.y + cam.dragOff.y, 0, lv.bounds.h);
+    } else if(cam.dragKind==="pan"){
+      // keep the initial world point under cursor
+      cam.x += (cam.dragOff.x - w.x);
+      cam.y += (cam.dragOff.y - w.y);
+    }
+  });
 
-      // label
-      ctx.fillStyle = "rgba(233,238,247,.85)";
-      ctx.font = `${12/scale}px var(--mono)`;
-      ctx.fillText("Bridge+Trolley", crane.hookX + 18/scale, crane.hookY - 14/scale);
+  canvas.addEventListener("pointerup", (e)=> {
+    cam.dragging=false; cam.dragKind=null; vpCached=null;
+  });
+
+  canvas.addEventListener("wheel",(e)=>{
+    const layout = getLayout();
+    const vp = layout.top;
+    const mx=e.clientX, my=e.clientY;
+    if(mx<vp.x||mx>vp.x+vp.w||my<vp.y||my>vp.y+vp.h) return;
+    e.preventDefault();
+    const before = topPxToWorld(mx,my,vp);
+    const z = Math.exp(-e.deltaY * 0.0016);
+    cam.zoom = clamp(cam.zoom * z, 2.0, 18.0);
+    const after = topPxToWorld(mx,my,vp);
+    cam.x += (before.x - after.x);
+    cam.y += (before.y - after.y);
+  }, {passive:false});
+
+  // ---------- Simulation update ----------
+  function step(dt){
+    const lv = getLevel();
+    const cr = getCrane();
+
+    // Controls -> axes
+    const prec = (state.precision || touch.precision) ? 0.35 : 1.0;
+    const moveAxis = (
+      (keys.has("KeyD")||keys.has("ArrowRight")? 1:0) -
+      (keys.has("KeyA")||keys.has("ArrowLeft")? 1:0)
+    ) + (isMobile()? touch.moveX : 0);
+
+    const hoistAxis = (
+      (keys.has("KeyS")||keys.has("ArrowDown")? 1:0) -
+      (keys.has("KeyW")||keys.has("ArrowUp")? 1:0)
+    ) + (isMobile()? touch.hoist : 0);
+
+    const slewAxis = (
+      (keys.has("KeyL")? 1:0) -
+      (keys.has("KeyJ")? 1:0)
+    ) + (isMobile()? touch.slew : 0);
+
+    const luffAxis = (
+      (keys.has("KeyI")? 1:0) -
+      (keys.has("KeyK")? 1:0)
+    ) + (isMobile()? touch.luff : 0);
+
+    const telAxis = (
+      (keys.has("KeyO")? 1:0) -
+      (keys.has("KeyU")? 1:0)
+    );
+
+    if(state.mode==="OPERATE"){
+      // Move base (simple along world X axis for game clarity)
+      crane.x = clamp(crane.x + moveAxis * cr.move * prec * dt, 0, lv.bounds.w);
+
+      // Slew
+      crane.slew += slewAxis * cr.slew * prec * dt;
+      crane.slew = (crane.slew + Math.PI*4) % (Math.PI*2);
+
+      // Luff
+      if(cr.type!=="TOWER"){
+        crane.luff = clamp(crane.luff + luffAxis * cr.luff * prec * dt, deg2rad(15), deg2rad(82));
+      } else {
+        // Tower crane: use luffAxis to move trolley instead
+        crane.trolley = clamp(crane.trolley + (-luffAxis) * 22 * prec * dt, 5, cr.boomMax);
+      }
+
+      // Telescope
+      if(cr.type==="TEL"){
+        crane.boomL = clamp(crane.boomL + telAxis * cr.tel * prec * 18 * dt, cr.boomMin, cr.boomMax);
+      } else if(cr.type==="CRAWLER"){
+        // allow "boom length" adjust slower
+        crane.boomL = clamp(crane.boomL + telAxis * 10 * prec * dt, cr.boomMin, cr.boomMax);
+      }
+
+      // Hoist line length
+      crane.hoist = clamp(crane.hoist + hoistAxis * cr.hoist * prec * dt * 10, 0.5, 75);
     }
 
-    // hoist indicator near hook (height)
+    const hk = getHook();
+
+    // Load behaviour
+    if(state.attached){
+      // springy pendulum-ish top view (stable, game friendly)
+      const k = 12 * settings.swingMul;
+      const d = 4.4;
+      const ax = (hk.x - load.x) * k - load.vx * d;
+      const ay = (hk.y - load.y) * k - load.vy * d;
+
+      // wind gusts (SIM)
+      if(settings.wind){
+        const gust = (Math.sin(nowMs()*0.0013) + Math.sin(nowMs()*0.0021))*0.25;
+        const wx = Math.cos(crane.slew + Math.PI/2) * gust;
+        const wy = Math.sin(crane.slew + Math.PI/2) * gust;
+        load.vx += wx * dt;
+        load.vy += wy * dt;
+      }
+
+      load.vx += ax * dt;
+      load.vy += ay * dt;
+      load.x += load.vx * dt;
+      load.y += load.vy * dt;
+
+      // Keep within bounds softly
+      if(load.x<0||load.x>lv.bounds.w) load.vx *= -0.4;
+      if(load.y<0||load.y>lv.bounds.h) load.vy *= -0.4;
+      load.x = clamp(load.x, 0, lv.bounds.w);
+      load.y = clamp(load.y, 0, lv.bounds.h);
+
+      // Height follows hook (minus tiny sling)
+      load.z = Math.max(0, hk.z - 1.0);
+
+      // Rotation tends to align with motion
+      const speed = Math.hypot(load.vx, load.vy);
+      const targetRot = Math.atan2(load.vy, load.vx);
+      if(speed > 0.8){
+        let diff = ((targetRot - load.rot + Math.PI*3)%(Math.PI*2)) - Math.PI;
+        load.vr += diff * 3.0 * dt;
+      }
+      load.vr *= (1 - 2.6*dt);
+      load.rot += load.vr * dt;
+    } else {
+      // on ground: settle at nearest stable (basic friction)
+      load.z = 0;
+      load.vx *= (1 - 6.0*dt);
+      load.vy *= (1 - 6.0*dt);
+    }
+
+    // Collisions (top view footprint)
+    const lw = lv.pick.w, lh = lv.pick.h;
+    let collided = false;
+    if(state.attached){
+      for(const o of lv.obstacles){
+        if(obbAabbCollide(load.x,load.y, lw,lh, load.rot, o.x,o.y,o.w,o.h)){
+          collided = true; break;
+        }
+      }
+      if(collided){
+        state.collisions += 1;
+        state.score = Math.max(0, state.score - 25);
+        // bounce a bit
+        load.vx *= -0.35;
+        load.vy *= -0.35;
+      }
+    }
+
+    // Score tick
+    if(state.mode==="OPERATE"){
+      state.score += dt * 2; // time alive
+    }
+
+    // Track peaks for rule scoring
+    const r = hk.r;
+    const cap = capAtRadiusT(cr, r);
+    const util = (getLevel().pick.massT / cap);
+    state._utilPeak = Math.max(state._utilPeak ?? 0, util);
+
+    const swing = rad2deg(Math.atan2(Math.hypot(load.vx,load.vy), 9.81));
+    state._swingPeak = Math.max(state._swingPeak ?? 0, swing);
+
+    // UI updates
+    updatePlanChecks();
+    updateHudRuntime(util, swing, hk);
+  }
+
+  function updateHudRuntime(util, swingDeg, hk){
+    const lv = getLevel();
+    hud.util.textContent = `${Math.round(util*100)}%`;
+    hud.swing.textContent = `${fmt(swingDeg,1)}°`;
+    hud.h.textContent = `${fmt(hk.z,1)} m`;
+    hud.r.textContent = `${fmt(hk.r,1)} m`;
+    hud.zoom.textContent = `${fmt(cam.zoom,1)} px/m`;
+
+    hud.barUtil.style.width = `${clamp(util*100, 0, 100)}%`;
+    hud.barSwing.style.width = `${clamp(swingDeg / 25 * 100, 0, 100)}%`;
+    hud.barH.style.width = `${clamp(hk.z / 60 * 100, 0, 100)}%`;
+    hud.barR.style.width = `${clamp(hk.r / (getCrane().boomMax||80) * 100, 0, 100)}%`;
+
+    // Hint guidance
+    if(state.mode==="PLAN"){
+      hud.hint.textContent = "PLAN: drag crane/pick/set in TOP. Open Plan Gate → tick minimum → Operate.";
+    } else {
+      hud.hint.textContent = state.attached
+        ? "OPERATE: move + slew + luff/tele + hoist. Avoid red blocks. Set down at green set with hook low."
+        : "OPERATE: get hook over magenta pick, hoist down near load, press SPACE (HOOK).";
+    }
+
+    // Warn in subtitle (clearance / utilisation)
+    const clearOK = clearanceOK(hk.z);
+    const warn = [];
+    if(util > lv.rules.maxUtil) warn.push("UTIL high");
+    if(swingDeg > lv.rules.maxSwingDeg) warn.push("swing high");
+    if(!clearOK) warn.push("clearance low");
+    $("subtitle").textContent = warn.length ? `Warnings: ${warn.join(" • ")}` : "Top (Plan) + Side (Elevation) • planning-gated gameplay";
+  }
+
+  // ---------- Rendering (CAD top + side) ----------
+  function draw(){
+    const layout = getLayout();
+    ctx.clearRect(0,0,W,H);
+
+    // background
+    ctx.fillStyle = "rgba(11,18,32,1)";
+    ctx.fillRect(0,0,W,H);
+
+    drawViewport(layout.top, "TOP / PLAN", "MODELSPACE");
+    drawViewport(layout.side, "SIDE / ELEVATION", "SECTION");
+
+    drawTop(layout.top);
+    drawSide(layout.side);
+
+    requestAnimationFrame(draw);
+  }
+
+  function drawViewport(vp, title, sub){
+    // frame
     ctx.save();
-    ctx.globalAlpha = 0.9;
-    ctx.strokeStyle = sim.overload ? "rgba(255,77,109,.85)" : "rgba(67,245,154,.55)";
-    ctx.lineWidth = 3/scale;
-    const h = clamp(crane.z/720, 0, 1) * 110;
-    roundRect(ctx, crane.hookX + 16/scale, crane.hookY - 60/scale, 12/scale, 120/scale, 10/scale);
+    ctx.fillStyle = "rgba(0,0,0,.18)";
+    ctx.fillRect(vp.x, vp.y, vp.w, vp.h);
+
+    ctx.strokeStyle = "rgba(255,255,255,.09)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(vp.x, vp.y, vp.w, vp.h);
+
+    // title bar
+    ctx.fillStyle = "rgba(15,22,33,.55)";
+    ctx.fillRect(vp.x, vp.y, vp.w, 26);
+    ctx.strokeStyle = "rgba(255,255,255,.06)";
+    ctx.beginPath(); ctx.moveTo(vp.x, vp.y+26); ctx.lineTo(vp.x+vp.w, vp.y+26); ctx.stroke();
+
+    ctx.fillStyle = "rgba(233,238,247,.92)";
+    ctx.font = `600 12px ${getComputedStyle(document.body).fontFamily}`;
+    ctx.fillText(title, vp.x+10, vp.y+17);
+
+    ctx.fillStyle = "rgba(159,176,199,.85)";
+    ctx.font = `12px var(--mono)`;
+    ctx.fillText(sub, vp.x+vp.w-10-ctx.measureText(sub).width, vp.y+17);
+
+    ctx.restore();
+  }
+
+  function drawGridTop(vp){
+    if(!settings.grid) return;
+    const lv = getLevel();
+    const step = 10; // metres
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(vp.x, vp.y+26, vp.w, vp.h-26);
+    ctx.clip();
+
+    ctx.lineWidth = 1;
+    for(let x=0;x<=lv.bounds.w;x+=step){
+      const p1 = worldToTopPx(x,0,vp);
+      const p2 = worldToTopPx(x,lv.bounds.h,vp);
+      ctx.strokeStyle = (x%50===0) ? "rgba(42,58,82,.45)" : "rgba(20,34,56,.55)";
+      ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
+    }
+    for(let y=0;y<=lv.bounds.h;y+=step){
+      const p1 = worldToTopPx(0,y,vp);
+      const p2 = worldToTopPx(lv.bounds.w,y,vp);
+      ctx.strokeStyle = (y%50===0) ? "rgba(42,58,82,.45)" : "rgba(20,34,56,.55)";
+      ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawTop(vp){
+    const lv = getLevel();
+    const cr = getCrane();
+    const hk = getHook();
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(vp.x, vp.y+26, vp.w, vp.h-26);
+    ctx.clip();
+
+    drawGridTop(vp);
+
+    // Bounds box
+    ctx.strokeStyle = "rgba(42,58,82,.8)";
+    ctx.lineWidth = 2;
+    const b0 = worldToTopPx(0,0,vp), b1=worldToTopPx(lv.bounds.w, lv.bounds.h, vp);
+    ctx.strokeRect(Math.min(b0.x,b1.x), Math.min(b0.y,b1.y), Math.abs(b1.x-b0.x), Math.abs(b1.y-b0.y));
+
+    // Obstacles
+    for(const o of lv.obstacles){
+      const p = worldToTopPx(o.x - o.w/2, o.y - o.h/2, vp);
+      const q = worldToTopPx(o.x + o.w/2, o.y + o.h/2, vp);
+      const rx = Math.min(p.x,q.x), ry = Math.min(p.y,q.y);
+      const rw = Math.abs(q.x-p.x), rh = Math.abs(q.y-p.y);
+
+      ctx.fillStyle = "rgba(255,77,109,.10)";
+      ctx.fillRect(rx,ry,rw,rh);
+
+      ctx.strokeStyle = "rgba(255,77,109,.9)";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(rx,ry,rw,rh);
+
+      ctx.fillStyle = "rgba(255,77,109,.9)";
+      ctx.font = "12px var(--mono)";
+      ctx.fillText(`${o.name} z=${o.z}m`, rx+6, ry+14);
+    }
+
+    // Pick / Set
+    drawPoint(vp, lv.pick.x, lv.pick.y, "PICK", "var(--cadMag)");
+    drawPoint(vp, lv.set.x, lv.set.y, "SET", "var(--cadGreen)");
+
+    // Crane base
+    const cb = worldToTopPx(crane.x, crane.y, vp);
+    ctx.fillStyle = "rgba(51,246,255,.18)";
+    ctx.beginPath(); ctx.arc(cb.x, cb.y, 12, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = "rgba(51,246,255,.95)";
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cb.x, cb.y, 10, 0, Math.PI*2); ctx.stroke();
+
+    // Slew axis crosshair
+    ctx.strokeStyle = "rgba(51,246,255,.55)";
+    ctx.beginPath(); ctx.moveTo(cb.x-16, cb.y); ctx.lineTo(cb.x+16, cb.y); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(cb.x, cb.y-16); ctx.lineTo(cb.x, cb.y+16); ctx.stroke();
+
+    // Radius line + hook
+    const hp = worldToTopPx(hk.x,hk.y,vp);
+    ctx.strokeStyle = "rgba(255,209,102,.95)";
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(cb.x,cb.y); ctx.lineTo(hp.x,hp.y); ctx.stroke();
+
+    ctx.fillStyle = "rgba(255,209,102,.95)";
+    ctx.beginPath(); ctx.arc(hp.x,hp.y, 5.5, 0, Math.PI*2); ctx.fill();
+
+    // Load footprint
+    const lw = lv.pick.w, lh = lv.pick.h;
+    drawOBB(vp, load.x, load.y, lw, lh, load.rot, state.attached ? "rgba(233,238,247,.9)" : "rgba(233,238,247,.55)");
+
+    // Hook-to-load “sling” line (top view)
+    ctx.strokeStyle = "rgba(233,238,247,.35)";
+    ctx.lineWidth = 1.5;
+    const lp = worldToTopPx(load.x, load.y, vp);
+    ctx.beginPath(); ctx.moveTo(hp.x, hp.y); ctx.lineTo(lp.x, lp.y); ctx.stroke();
+
+    // Dimensions
+    if(settings.dims){
+      drawDimLine(vp, crane.x, crane.y, hk.x, hk.y, `R=${fmt(hk.r,1)}m`, "rgba(255,209,102,.95)");
+    }
+
+    // Model info
+    ctx.fillStyle = "rgba(233,238,247,.88)";
+    ctx.font = "12px var(--mono)";
+    ctx.fillText(`${cr.brand} ${cr.model}  |  ${cr.type}  |  boom=${fmt(crane.boomL,1)}m  luff=${Math.round(rad2deg(crane.luff))}°`, vp.x+10, vp.y+vp.h-10);
+
+    ctx.restore();
+  }
+
+  function drawPoint(vp, x,y, label, colorVar){
+    const p = worldToTopPx(x,y,vp);
+    ctx.fillStyle = `rgba(0,0,0,.35)`;
+    ctx.beginPath(); ctx.arc(p.x,p.y, 10, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle = getComputedStyle(document.documentElement).getPropertyValue(colorVar).trim();
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(p.x,p.y, 8, 0, Math.PI*2); ctx.stroke();
+    ctx.fillStyle = ctx.strokeStyle;
+    ctx.font = "12px var(--mono)";
+    ctx.fillText(label, p.x+12, p.y-10);
+  }
+
+  function drawOBB(vp, cx,cy,w,h,theta, stroke){
+    const p = worldToTopPx(cx,cy,vp);
+    const s = cam.zoom;
+    const ww = w*s, hh = h*s;
+
+    ctx.save();
+    ctx.translate(p.x,p.y);
+    ctx.rotate(theta);
+    ctx.strokeStyle = stroke;
+    ctx.fillStyle = "rgba(233,238,247,.06)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.rect(-ww/2, -hh/2, ww, hh);
+    ctx.fill(); ctx.stroke();
+    // local axis tick
+    ctx.strokeStyle = "rgba(233,238,247,.35)";
+    ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(ww/2, 0); ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawDimLine(vp, x1,y1,x2,y2, text, color){
+    const p1 = worldToTopPx(x1,y1,vp), p2=worldToTopPx(x2,y2,vp);
+    // offset perpendicular
+    const dx=p2.x-p1.x, dy=p2.y-p1.y;
+    const l=Math.hypot(dx,dy)+1e-9;
+    const nx=-dy/l, ny=dx/l;
+    const off=14;
+    const a={x:p1.x+nx*off, y:p1.y+ny*off};
+    const b={x:p2.x+nx*off, y:p2.y+ny*off};
+
+    ctx.save();
+    ctx.strokeStyle = color; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+
+    // end ticks
+    ctx.beginPath(); ctx.moveTo(a.x-nx*6, a.y-ny*6); ctx.lineTo(a.x+nx*6, a.y+ny*6); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(b.x-nx*6, b.y-ny*6); ctx.lineTo(b.x+nx*6, b.y+ny*6); ctx.stroke();
+
+    // text
+    ctx.fillStyle = color;
+    ctx.font="12px var(--mono)";
+    const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
+    ctx.fillText(text, mx+6, my-6);
+    ctx.restore();
+  }
+
+  function drawSide(vp){
+    const lv = getLevel();
+    const cr = getCrane();
+    const hk = getHook();
+
+    // update side cam: keep base near left, focus z around hook
+    sideCam.zoom = clamp(Math.min(vp.w, vp.h) / 65, 4.0, 10.0);
+    sideCam.z = lerp(sideCam.z, Math.max(6, hk.z-6), 0.08);
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(vp.x, vp.y+26, vp.w, vp.h-26);
+    ctx.clip();
+
+    // Grid
+    if(settings.grid){
+      for(let s=0;s<=140;s+=10){
+        const p1 = sideToPx(s, -5, vp);
+        const p2 = sideToPx(s, 90, vp);
+        ctx.strokeStyle = (s%50===0) ? "rgba(42,58,82,.45)" : "rgba(20,34,56,.55)";
+        ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
+      }
+      for(let z=0;z<=90;z+=10){
+        const p1 = sideToPx(-5, z, vp);
+        const p2 = sideToPx(160, z, vp);
+        ctx.strokeStyle = (z%50===0) ? "rgba(42,58,82,.45)" : "rgba(20,34,56,.55)";
+        ctx.beginPath(); ctx.moveTo(p1.x,p1.y); ctx.lineTo(p2.x,p2.y); ctx.stroke();
+      }
+    }
+
+    // Ground line
+    ctx.strokeStyle="rgba(233,238,247,.28)";
+    ctx.lineWidth=2;
+    const g1 = sideToPx(-5,0,vp), g2=sideToPx(160,0,vp);
+    ctx.beginPath(); ctx.moveTo(g1.x,g1.y); ctx.lineTo(g2.x,g2.y); ctx.stroke();
+
+    // Obstacles projected if they intersect the base->load ray
+    const bx=crane.x, by=crane.y;
+    const lx=load.x, ly=load.y;
+    const dx=lx-bx, dy=ly-by;
+    const segLen=Math.hypot(dx,dy)+1e-9;
+    const ux=dx/segLen, uy=dy/segLen;
+
+    // draw obstacles in side where ray crosses their footprint
+    for(const o of lv.obstacles){
+      // approximate: distance along ray to obstacle centre projection
+      const vx=o.x-bx, vy=o.y-by;
+      const s = vx*ux + vy*uy;
+      // see if ray passes through AABB (rough check using closest point)
+      const cx = bx + ux*s, cy = by + uy*s;
+      const inside = (Math.abs(cx - o.x) <= o.w/2 + 0.5) && (Math.abs(cy - o.y) <= o.h/2 + 0.5);
+      if(!inside) continue;
+
+      const p = sideToPx(s - o.w/2, 0, vp);
+      const q = sideToPx(s + o.w/2, o.z, vp);
+
+      const rx=Math.min(p.x,q.x), ry=Math.min(p.y,q.y);
+      const rw=Math.abs(q.x-p.x), rh=Math.abs(q.y-p.y);
+
+      ctx.fillStyle="rgba(255,77,109,.10)";
+      ctx.fillRect(rx,ry,rw,rh);
+      ctx.strokeStyle="rgba(255,77,109,.9)";
+      ctx.lineWidth=2;
+      ctx.strokeRect(rx,ry,rw,rh);
+
+      ctx.fillStyle="rgba(255,77,109,.9)";
+      ctx.font="12px var(--mono)";
+      ctx.fillText(`${o.name}`, rx+6, ry+14);
+      ctx.fillText(`z=${o.z}m`, rx+6, ry+28);
+    }
+
+    // Crane (side)
+    const baseP = sideToPx(0, cr.baseH, vp);
+    ctx.fillStyle="rgba(51,246,255,.20)";
+    ctx.beginPath(); ctx.arc(baseP.x, baseP.y, 8, 0, Math.PI*2); ctx.fill();
+    ctx.strokeStyle="rgba(51,246,255,.95)";
+    ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(baseP.x, baseP.y, 6, 0, Math.PI*2); ctx.stroke();
+
+    // Boom line + tip
+    let tipS=hk.r;
+    let tipZ;
+    if(cr.type==="TOWER"){
+      tipZ = cr.baseH + 38; // mast height (SIM)
+      // jib line (horizontal)
+      const jibP1 = sideToPx(0, tipZ, vp);
+      const jibP2 = sideToPx(cr.boomMax, tipZ, vp);
+      ctx.strokeStyle="rgba(255,209,102,.75)";
+      ctx.lineWidth=3;
+      ctx.beginPath(); ctx.moveTo(jibP1.x,jibP1.y); ctx.lineTo(jibP2.x,jibP2.y); ctx.stroke();
+
+      // trolley
+      const tr = sideToPx(hk.r, tipZ, vp);
+      ctx.fillStyle="rgba(255,209,102,.95)";
+      ctx.beginPath(); ctx.rect(tr.x-6, tr.y-6, 12, 12); ctx.fill();
+    } else {
+      // boom at luff angle
+      const L = clamp(crane.boomL, cr.boomMin, cr.boomMax);
+      const theta = crane.luff;
+      tipS = L*Math.cos(theta);
+      tipZ = cr.baseH + L*Math.sin(theta);
+      const tipP = sideToPx(tipS, tipZ, vp);
+
+      ctx.strokeStyle="rgba(255,209,102,.85)";
+      ctx.lineWidth=3;
+      ctx.beginPath(); ctx.moveTo(baseP.x, baseP.y); ctx.lineTo(tipP.x, tipP.y); ctx.stroke();
+
+      ctx.fillStyle="rgba(255,209,102,.95)";
+      ctx.beginPath(); ctx.arc(tipP.x, tipP.y, 5.5, 0, Math.PI*2); ctx.fill();
+    }
+
+    // Hook block + rope
+    const hookP = sideToPx(hk.r, hk.z, vp);
+    const tipP2 = sideToPx(tipS, tipZ, vp);
+
+    ctx.strokeStyle="rgba(233,238,247,.55)";
+    ctx.lineWidth=2;
+    ctx.beginPath();
+    // slight “cable curve”
+    const mx = lerp(tipP2.x, hookP.x, 0.55);
+    const my = lerp(tipP2.y, hookP.y, 0.55) + 8;
+    ctx.moveTo(tipP2.x, tipP2.y);
+    ctx.quadraticCurveTo(mx,my, hookP.x, hookP.y);
     ctx.stroke();
-    ctx.fillStyle = sim.overload ? "rgba(255,77,109,.25)" : "rgba(67,245,154,.22)";
-    ctx.fillRect(crane.hookX + 16/scale, crane.hookY + 60/scale - h/scale, 12/scale, h/scale);
+
+    // hook block
+    ctx.fillStyle="rgba(233,238,247,.9)";
+    ctx.beginPath(); ctx.roundRect(hookP.x-8, hookP.y-10, 16, 20, 4); ctx.fill();
+
+    // Load (side)
+    const loadH = Math.max(0, hk.z - 1.0);
+    const loadP = sideToPx(hk.r, loadH, vp);
+    ctx.fillStyle = "rgba(233,238,247,.08)";
+    ctx.strokeStyle = "rgba(233,238,247,.75)";
+    ctx.lineWidth = 2;
+    const lw = lv.pick.w * 0.7;    // side silhouette
+    const lh = lv.pick.h * 0.7;
+    const wpx = lw * sideCam.zoom;
+    const hpx = lh * sideCam.zoom;
+    ctx.fillRect(loadP.x - wpx/2, loadP.y - hpx, wpx, hpx);
+    ctx.strokeRect(loadP.x - wpx/2, loadP.y - hpx, wpx, hpx);
+
+    // Clearance warning
+    const clearOK = clearanceOK(hk.z);
+    if(!clearOK){
+      ctx.fillStyle="rgba(255,209,102,.95)";
+      ctx.font="700 14px var(--mono)";
+      ctx.fillText("CLEARANCE WARNING (SIM)", vp.x+12, vp.y+44);
+    }
+
+    // Side dims
+    if(settings.dims){
+      // radius dim
+      ctx.strokeStyle="rgba(255,209,102,.7)";
+      ctx.lineWidth=1.5;
+      const p0=sideToPx(0, cr.baseH+0.5, vp);
+      const p1=sideToPx(hk.r, cr.baseH+0.5, vp);
+      ctx.beginPath(); ctx.moveTo(p0.x,p0.y); ctx.lineTo(p1.x,p1.y); ctx.stroke();
+      ctx.fillStyle="rgba(255,209,102,.95)";
+      ctx.font="12px var(--mono)";
+      ctx.fillText(`R=${fmt(hk.r,1)}m`, (p0.x+p1.x)/2-18, p0.y-8);
+
+      // height dim
+      ctx.strokeStyle="rgba(51,246,255,.55)";
+      const h0=sideToPx(hk.r+2, 0, vp);
+      const h1=sideToPx(hk.r+2, hk.z, vp);
+      ctx.beginPath(); ctx.moveTo(h0.x,h0.y); ctx.lineTo(h1.x,h1.y); ctx.stroke();
+      ctx.fillStyle="rgba(51,246,255,.9)";
+      ctx.fillText(`H=${fmt(hk.z,1)}m`, h1.x+6, (h0.y+h1.y)/2);
+    }
+
     ctx.restore();
-
-    ctx.restore();
   }
 
-  function drawWarnings(ctx, scale){
-    const cr = getCrane(state.selectedCraneId);
-    ctx.save();
-    const lv = getLevel(state.levelIndex);
-    const swingTarget = lv.meta.swingDeg * diffParams().swingMult;
-
-    // show attach prompt in-world near hook
-    if (canAttach()){
-      ctx.globalAlpha = 0.95;
-      ctx.fillStyle = "rgba(67,245,154,.95)";
-      ctx.font = `${14/scale}px ${getComputedStyle(document.body).fontFamily}`;
-      ctx.fillText("ATTACH", crane.hookX + 14/scale, crane.hookY + 18/scale);
-    }
-
-    // Overload warning
-    if (sim.overload){
-      ctx.globalAlpha = 0.92;
-      ctx.fillStyle = "rgba(255,77,109,.95)";
-      ctx.font = `${16/scale}px ${getComputedStyle(document.body).fontFamily}`;
-      ctx.fillText("OVERLOAD", crane.hookX - 40/scale, crane.hookY - 22/scale);
-    }
-
-    // Swing warning
-    if (sim.maxSwingDeg > swingTarget * 1.05){
-      ctx.globalAlpha = 0.85;
-      ctx.fillStyle = "rgba(255,209,102,.95)";
-      ctx.font = `${14/scale}px ${getComputedStyle(document.body).fontFamily}`;
-      ctx.fillText("EXCESS SWING", sim.load.x + 20/scale, sim.load.y - 20/scale);
-    }
-
-    // Stability warning
-    if (sim.stability < 0.25){
-      ctx.globalAlpha = 0.85;
-      ctx.fillStyle = "rgba(255,77,109,.95)";
-      ctx.font = `${14/scale}px ${getComputedStyle(document.body).fontFamily}`;
-      ctx.fillText("INSTABILITY", sim.load.x + 18/scale, sim.load.y + 26/scale);
-    }
-
-    ctx.restore();
-
-    // Toggle mobile buttons visibility based on crane capabilities
-    const useTouch = touchUI.classList.contains("on");
-    if (useTouch){
-      const showSlew = !!cr.caps.slew;
-      const showTel  = !!(cr.caps.telescope) || (!!cr.caps.slew); // allow radius control for towers via telescope buttons
-      // If crane cannot slew, dim slew buttons
-      tSlewL.classList.toggle("warn", showSlew);
-      tSlewR.classList.toggle("warn", showSlew);
-      tSlewL.style.opacity = showSlew ? "1" : "0.35";
-      tSlewR.style.opacity = showSlew ? "1" : "0.35";
-
-      tTelIn.style.opacity = showTel ? "1" : "0.35";
-      tTelOut.style.opacity = showTel ? "1" : "0.35";
-    }
+  // roundRect polyfill (some browsers)
+  if(!CanvasRenderingContext2D.prototype.roundRect){
+    CanvasRenderingContext2D.prototype.roundRect = function(x,y,w,h,r){
+      r = Math.min(r, w/2, h/2);
+      this.beginPath();
+      this.moveTo(x+r,y);
+      this.arcTo(x+w,y,x+w,y+h,r);
+      this.arcTo(x+w,y+h,x,y+h,r);
+      this.arcTo(x,y+h,x,y,r);
+      this.arcTo(x,y,x+w,y,r);
+      this.closePath();
+      return this;
+    };
   }
 
-  function roundRect(ctx, x,y,w,h,r){
-    r = Math.min(r, w/2, h/2);
-    ctx.beginPath();
-    ctx.moveTo(x+r, y);
-    ctx.arcTo(x+w, y, x+w, y+h, r);
-    ctx.arcTo(x+w, y+h, x, y+h, r);
-    ctx.arcTo(x, y+h, x, y, r);
-    ctx.arcTo(x, y, x+w, y, r);
-    ctx.closePath();
-  }
-  function roundRectPx(ctx, x,y,w,h,r){
-    r = Math.min(r, w/2, h/2);
-    ctx.beginPath();
-    ctx.moveTo(x+r, y);
-    ctx.arcTo(x+w, y, x+w, y+h, r);
-    ctx.arcTo(x+w, y+h, x, y+h, r);
-    ctx.arcTo(x, y+h, x, y, r);
-    ctx.arcTo(x, y, x+w, y, r);
-    ctx.closePath();
-  }
+  // ---------- Boot ----------
+  buildHangar();
+  buildLevels();
+  resetToLevel(state.levelIndex);
 
-  /* ----------------------------- Loop ----------------------------- */
-  let last = now();
+  // Keep “Operate” button text reflecting mode
+  setInterval(()=>{
+    $("btnPlay").textContent = (state.mode==="OPERATE") ? "Operate" : "Operate";
+  }, 500);
+
+  // tick loop
+  let last = nowMs();
   function tick(){
-    const t = now();
-    const dt = clamp((t - last) / 1000, 0, 1/20);
+    const t = nowMs();
+    const dt = clamp((t-last)/1000, 0, 0.05);
     last = t;
-
-    updateControlStack();
-
-    // Map touch buttons to control for slewing/telescope (only if supported)
-    const cr = getCrane(state.selectedCraneId);
-    if (touchUI.classList.contains("on")){
-      // Slew uses dedicated buttons. If crane doesn't support slew, steer via joystick only.
-      const slew = (state.touch.btn.slewL ? -1 : 0) + (state.touch.btn.slewR ? 1 : 0);
-      state.control.slew = cr.caps.slew ? slew : 0;
-
-      // Telescope / radius adjustment: we allow it also for towers (trolley along jib)
-      const tel = (state.touch.btn.telIn ? -1 : 0) + (state.touch.btn.telOut ? 1 : 0);
-      state.control.telescope = tel;
-    }
-
-    // Update camera
-    computeCamera(dt);
-
-    // Update sim
-    if (state.mode === "playing"){
-      updateGame(dt);
-    } else {
-      // decay FX even when paused/result
-      state.camera.shake = Math.max(0, state.camera.shake - dt*1.3);
-      state.fx.bannerT = Math.max(0, state.fx.bannerT - dt);
-      state.fx.flash = Math.max(0, state.fx.flash - dt*1.6);
-      updateHUD();
-    }
-
-    // Push touch visuals
-    if (touchUI.classList.contains("on")) applyTouchVisuals();
-
-    // Draw
-    draw();
-
+    step(dt);
     requestAnimationFrame(tick);
   }
+  tick();
+  draw();
 
-  /* ----------------------------- Boot ----------------------------- */
-  bindTouch();
-  syncSettingsUI();
-  applyControlMode();
-  resize();
-  renderHangar();
-  renderLevels();
+  // Panel auto-close on click outside
+  Object.values(overlays).forEach(ov => ov.addEventListener("click",(e)=>{
+    if(e.target===ov) ov.classList.remove("on");
+  }));
 
-  // Start on first level
-  startLevel(0, false, true);
-  showOverlay(ovHangar, true);
-
-  requestAnimationFrame(tick);
+  // Persist plan gate and update status
+  computePlanGate();
+  updatePlanChecks();
+  updateHud();
 })();
 </script>
 </body>
 </html>
-
